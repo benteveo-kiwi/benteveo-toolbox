@@ -1,6 +1,7 @@
 import math
 import unittest
 import operator
+from java.awt import Component
 from benteveo_toolbox import BurpExtender
 
 class GenericMock(object):
@@ -16,6 +17,12 @@ class GenericMock(object):
             return GenericMock()
 
         return method
+
+    def getComponent(self, *args):
+        class ComponentMock(Component):
+            pass
+            
+        return ComponentMock()
 
 class TestToolbox(unittest.TestCase):
 
