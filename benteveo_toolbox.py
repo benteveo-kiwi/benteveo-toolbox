@@ -25,16 +25,22 @@ class BurpExtender(IBurpExtender):
         Burp initialisation function. Gets called when the extension is loaded and
         is in charge of building the UI.
         """
-
-        callbacks.setExtensionName("Benteveo Toolbox")
-
+        # add Burp utility functions to state so that they are accessible everywhere.
         state = State()
-
         state._callbacks = callbacks
         state._helpers = callbacks.getHelpers()
-
         state.tableModel = TableModel(state)
 
+        # Add required callbacks.
+        self.buildUi(state, callbacks)
+        callbacks.setExtensionName("Benteveo Toolbox")
+        callbacks.addSuiteTab(Tab(state))
+        callbacks.registerHttpListener(HttpListener(state))
+
+    def buildUi(self, state, callbacks):
+        """
+        Handles the building of the UI components using Swing, a UI library.
+        """
         state._splitpane = JSplitPane(JSplitPane.VERTICAL_SPLIT)
         logTable = Table(state.tableModel)
         scrollPane = JScrollPane(logTable)
@@ -48,16 +54,7 @@ class BurpExtender(IBurpExtender):
         tabs.addTab("Response", state._responseViewer.getComponent())
         state._splitpane.setRightComponent(tabs)
 
-        # customize our UI components
         callbacks.customizeUiComponent(state._splitpane)
         callbacks.customizeUiComponent(logTable)
         callbacks.customizeUiComponent(scrollPane)
         callbacks.customizeUiComponent(tabs)
-
-        tab = Tab(state)
-        httpListener = HttpListener(state)
-
-        callbacks.addSuiteTab(tab)
-        callbacks.registerHttpListener(httpListener)
-
-        return
