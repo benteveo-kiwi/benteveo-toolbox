@@ -120,9 +120,30 @@ class ToolboxUI():
         """
         splitpane = JSplitPane(JSplitPane.VERTICAL_SPLIT)
 
-        logTable = Table(state.tableModel)
-        scrollPane = JScrollPane(logTable)
+        requestTable = self.buildRequestTable(state, callbacks)
+        tabs = self.buildMessageViewer(state, callbacks)
 
+        splitpane.setLeftComponent(requestTable)
+        splitpane.setRightComponent(tabs)
+
+        callbacks.customizeUiComponent(requestTable)
+        callbacks.customizeUiComponent(tabs)
+
+        return splitpane
+
+    def buildRequestTable(self, state, callbacks):
+        splitpane = JSplitPane()
+
+        logTable = Table(state.tableModel)
+        endpointView = JScrollPane(logTable)
+        callbacks.customizeUiComponent(endpointView)
+        callbacks.customizeUiComponent(logTable)
+
+        splitpane.setLeftComponent(endpointView)
+
+        return splitpane
+
+    def buildMessageViewer(self, state, callbacks):
         tabs = JTabbedPane()
         messageEditor = MessageEditorController(state)
         state._requestViewer = callbacks.createMessageEditor(messageEditor, False)
@@ -130,12 +151,4 @@ class ToolboxUI():
         tabs.addTab("Request", state._requestViewer.getComponent())
         tabs.addTab("Response", state._responseViewer.getComponent())
 
-        splitpane.setLeftComponent(scrollPane)
-        splitpane.setRightComponent(tabs)
-
-        callbacks.customizeUiComponent(splitpane)
-        callbacks.customizeUiComponent(logTable)
-        callbacks.customizeUiComponent(scrollPane)
-        callbacks.customizeUiComponent(tabs)
-
-        return splitpane
+        return tabs

@@ -4,9 +4,9 @@ from classes import Table, LogEntry, Tab, HttpListener, TableModel, MessageEdito
 
 class State(object):
     """
-    A very important object that keeps the state of the application. Because Burp's
-    architecture is event driven, I use this object for communication between the different
-    objects that get called on different callbacks.
+    An object that keeps the state of the application. Because Burp's
+    architecture is event driven, I use this object for communication between
+    the different objects that get called on different callbacks.
     """
     pass
 
@@ -28,6 +28,7 @@ class BurpExtender(IBurpExtender):
         # Add required callbacks.
         ui = ToolboxUI()
         splitpane = ui.buildUi(state, callbacks)
-        callbacks.setExtensionName("Benteveo Toolbox")
+
         callbacks.addSuiteTab(Tab(splitpane))
         callbacks.registerHttpListener(HttpListener(state))
+        callbacks.setExtensionName("Benteveo Toolbox")
