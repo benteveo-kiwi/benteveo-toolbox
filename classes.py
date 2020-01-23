@@ -42,6 +42,7 @@ class EndpointTableModel(AbstractTableModel):
     def __init__(self, state):
         self._lock = Lock()
         self.state = state
+        self.endpoints = {}
 
     def generateEndpointHash(self, httpRequestResponse):
         """

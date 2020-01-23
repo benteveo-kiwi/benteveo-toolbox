@@ -58,7 +58,7 @@ class TestToolbox(unittest.TestCase):
 
         hash = etm.generateEndpointHash(GenericMock())
 
-        print hash
+        self.assertEquals(hash, "GET|http://www.example.org/users")
 
 
 if __name__ == '__main__':
