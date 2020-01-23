@@ -1,6 +1,6 @@
 from burp import IBurpExtender
-from classes import Table, LogEntry, Tab, HttpListener, TableModel, MessageEditorController, \
-    ToolboxUI
+from classes import Table, Tab, HttpListener, MessageEditorController, \
+    ToolboxUI, EndpointTableModel, RequestTableModel
 
 class State(object):
     """
@@ -23,7 +23,8 @@ class BurpExtender(IBurpExtender):
         state = State()
         state._callbacks = callbacks
         state._helpers = callbacks.getHelpers()
-        state.tableModel = TableModel(state)
+        state.endpointTableModel = EndpointTableModel(state)
+        state.requestTableModel = RequestTableModel(state)
 
         # Add required callbacks.
         ui = ToolboxUI()

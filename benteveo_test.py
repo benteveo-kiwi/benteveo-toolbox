@@ -3,20 +3,34 @@ import unittest
 import operator
 from java.awt import Component
 from benteveo_toolbox import BurpExtender
+from classes import EndpointTableModel
 
 class GenericMock(object):
-    calls = {}
+    """
+    A generic mocking class that accepts calls to any method without crashing.
+
+    Because we're using jython, installing commonly used mocking frameworks takes more than one command and could make creating a testing environment more complicated.
+    """
+
+    call_count = 0
+    mocked = {}
+
     def __getattr__(self, name):
-        def method(*args):
 
-            try:
-                self.calls[name] += 1
-            except KeyError:
-                self.calls[name] = 1
+        try:
+            return object.__getattribute__(self, name)
+        except AttributeError:
+            pass
 
-            return GenericMock()
+        try:
+            return self.mocked[name]
+        except KeyError:
+            self.mocked[name] = GenericMock()
+            return self.mocked[name]
 
-        return method
+    def __call__(self, *args):
+        self.call_count += 1
+        return self.return_value
 
     def getComponent(self, *args):
         class ComponentMock(Component):
@@ -28,7 +42,24 @@ class TestToolbox(unittest.TestCase):
 
     def testCanRunMainWithoutCrashing(self):
         be = BurpExtender()
-        be.registerExtenderCallbacks(GenericMock())
+        mock = GenericMock()
+        be.registerExtenderCallbacks(mock)
+
+        print mock.setExtensionName
+        self.assertEqual(mock.setExtensionName.call_count, 1)
+
+    def testGenerateEndpointHash(self):
+        state = GenericMock()
+        etm = EndpointTableModel(state)
+
+        ret = state.helpers.analyzeRequest.return_value
+        ret.method = "GET"
+        ret.url = "http://www.example.org/users"
+
+        hash = etm.generateEndpointHash(GenericMock())
+
+        print hash
+
 
 if __name__ == '__main__':
     unittest.main()

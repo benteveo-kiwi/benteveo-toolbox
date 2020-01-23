@@ -26,13 +26,73 @@ class Table(JTable):
 
         JTable.changeSelection(self, row, col, toggle, extend)
 
-class LogEntry:
-    def __init__(self, tool, requestResponse, url):
-        self._tool = tool
-        self._requestResponse = requestResponse
-        self._url = url
+class EndpointModel(object):
+    def __init__(self, method, url):
+        self.method = method
+        self.url = url
+        self.nb = 0
+        self.nb_same_status = 0
+        self.nb_same_len = 0
+        self.requests = []
 
-class TableModel(AbstractTableModel):
+class EndpointTableModel(AbstractTableModel):
+
+    cols = ["Method", "URL", "#", "Same Status", "Same Len"]
+
+    def __init__(self, state):
+        self._lock = Lock()
+        self.state = state
+
+    def generateEndpointHash(self, httpRequestResponse):
+        """
+        In this endpoint, a hash is a string that is used to group requests.
+
+        Requests that have the same URL and method should be grouped together to avoid duplication of testing effort.
+
+        Args:
+            httpRequestResponse: an HttpRequestResponse java object as returned by burp.
+        """
+
+        request = self.state.helpers.analyzeRequest(httpRequestResponse)
+
+        method = request.method
+        url = request.url
+
+        return method + "|" + url
+
+    def getRowCount(self):
+        try:
+            return len(self.endpoints)
+        except:
+            return 0
+
+    def getColumnCount(self):
+        return len(self.cols)
+
+    def getColumnName(self, columnIndex):
+        return self.cols[columnIndex]
+
+    def getValueAt(self, rowIndex, columnIndex):
+        return
+        logEntry = self._log.get(rowIndex)
+        if columnIndex == 0:
+            return self.state._callbacks.getToolName(logEntry._tool)
+        if columnIndex == 1:
+            return logEntry._url.toString()
+        return ""
+
+    # def addLogEntry(self, logEntry):
+    #     return
+    #     self._lock.acquire()
+    #     row = self._log.size()
+    #     self._log.add(logEntry)
+    #     self.fireTableRowsInserted(row, row)
+    #     self._lock.release()
+
+class RequestTableModel(AbstractTableModel):
+
+    cols = ["Orig Status", "Status", "Orig Len", "Resp Len", "Diff"]
+
     def __init__(self, state):
         self._log = ArrayList()
         self._lock = Lock()
@@ -45,14 +105,10 @@ class TableModel(AbstractTableModel):
             return 0
 
     def getColumnCount(self):
-        return 2
+        return len(self.cols)
 
     def getColumnName(self, columnIndex):
-        if columnIndex == 0:
-            return "Tool"
-        if columnIndex == 1:
-            return "URL"
-        return ""
+        return self.cols[columnIndex]
 
     def getValueAt(self, rowIndex, columnIndex):
         logEntry = self._log.get(rowIndex)
@@ -97,7 +153,7 @@ class HttpListener(IHttpListener):
             return
 
         logEntry = LogEntry(toolFlag, self.state._callbacks.saveBuffersToTempFiles(messageInfo), self.state._helpers.analyzeRequest(messageInfo).getUrl())
-        self.state.tableModel.addLogEntry(logEntry)
+        #self.state.endpointTableModel.addLogEntry(logEntry)
 
 class MessageEditorController(IMessageEditorController):
 
@@ -118,6 +174,15 @@ class ToolboxUI():
         """
         Handles the building of the UI components using Swing, a UI library.
         """
+
+        tabs = JTabbedPane()
+        resultsPane = self.buildResultsPane(state, callbacks)
+
+        tabs.addTab("Results", resultsPane)
+
+        return tabs
+
+    def buildResultsPane(self, state, callbacks):
         splitpane = JSplitPane(JSplitPane.VERTICAL_SPLIT)
 
         requestTable = self.buildRequestTable(state, callbacks)
@@ -133,13 +198,20 @@ class ToolboxUI():
 
     def buildRequestTable(self, state, callbacks):
         splitpane = JSplitPane()
+        splitpane.setDividerLocation(1000)
 
-        logTable = Table(state.tableModel)
-        endpointView = JScrollPane(logTable)
+        endpointTable = Table(state.endpointTableModel)
+        endpointView = JScrollPane(endpointTable)
+        callbacks.customizeUiComponent(endpointTable)
         callbacks.customizeUiComponent(endpointView)
-        callbacks.customizeUiComponent(logTable)
+
+        requestTable = Table(state.requestTableModel)
+        requestView = JScrollPane(requestTable)
+        callbacks.customizeUiComponent(requestTable)
+        callbacks.customizeUiComponent(requestView)
 
         splitpane.setLeftComponent(endpointView)
+        splitpane.setRightComponent(requestView)
 
         return splitpane
 
