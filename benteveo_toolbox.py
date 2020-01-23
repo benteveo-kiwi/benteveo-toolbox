@@ -1,12 +1,6 @@
 from burp import IBurpExtender
-from java.awt import Component
-from java.io import PrintWriter
-from java.util import List
-from javax.swing import JScrollPane
-from javax.swing import JSplitPane
-from javax.swing import JTabbedPane
-from javax.swing import SwingUtilities
-from classes import Table, LogEntry, Tab, HttpListener, TableModel, MessageEditorController
+from classes import Table, LogEntry, Tab, HttpListener, TableModel, MessageEditorController, \
+    ToolboxUI
 
 class State(object):
     """
@@ -32,29 +26,8 @@ class BurpExtender(IBurpExtender):
         state.tableModel = TableModel(state)
 
         # Add required callbacks.
-        self.buildUi(state, callbacks)
+        ui = ToolboxUI()
+        splitpane = ui.buildUi(state, callbacks)
         callbacks.setExtensionName("Benteveo Toolbox")
-        callbacks.addSuiteTab(Tab(state))
+        callbacks.addSuiteTab(Tab(splitpane))
         callbacks.registerHttpListener(HttpListener(state))
-
-    def buildUi(self, state, callbacks):
-        """
-        Handles the building of the UI components using Swing, a UI library.
-        """
-        state._splitpane = JSplitPane(JSplitPane.VERTICAL_SPLIT)
-        logTable = Table(state.tableModel)
-        scrollPane = JScrollPane(logTable)
-        state._splitpane.setLeftComponent(scrollPane)
-
-        tabs = JTabbedPane()
-        messageEditor = MessageEditorController(state)
-        state._requestViewer = callbacks.createMessageEditor(messageEditor, False)
-        state._responseViewer = callbacks.createMessageEditor(messageEditor, False)
-        tabs.addTab("Request", state._requestViewer.getComponent())
-        tabs.addTab("Response", state._responseViewer.getComponent())
-        state._splitpane.setRightComponent(tabs)
-
-        callbacks.customizeUiComponent(state._splitpane)
-        callbacks.customizeUiComponent(logTable)
-        callbacks.customizeUiComponent(scrollPane)
-        callbacks.customizeUiComponent(tabs)

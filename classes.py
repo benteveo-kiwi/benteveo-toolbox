@@ -1,10 +1,15 @@
-from javax.swing import JTable;
 from burp import ITab
 from burp import IHttpListener
-from javax.swing.table import AbstractTableModel
 from java.util import ArrayList
 from threading import Lock
 from burp import IMessageEditorController
+from javax.swing import JTable;
+from javax.swing.table import AbstractTableModel
+from javax.swing import JScrollPane
+from javax.swing import JSplitPane
+from javax.swing import JTabbedPane
+from javax.swing import SwingUtilities
+from java.awt import Component
 
 class Table(JTable):
     def __init__(self, extender):
@@ -65,8 +70,8 @@ class TableModel(AbstractTableModel):
         self._lock.release()
 
 class Tab(ITab):
-    def __init__(self, state):
-        self.state = state
+    def __init__(self, splitpane):
+        self.splitpane = splitpane
 
     def getTabCaption(self):
         """
@@ -78,7 +83,7 @@ class Tab(ITab):
         """
         Tells burp which UI element to display on our custom tab.
         """
-        return self.state._splitpane
+        return self.splitpane
 
 class HttpListener(IHttpListener):
     def __init__(self, state):
@@ -107,3 +112,30 @@ class MessageEditorController(IMessageEditorController):
 
     def getResponse(self):
         return self.state._currentlyDisplayedItem.getResponse()
+
+class ToolboxUI():
+    def buildUi(self, state, callbacks):
+        """
+        Handles the building of the UI components using Swing, a UI library.
+        """
+        splitpane = JSplitPane(JSplitPane.VERTICAL_SPLIT)
+
+        logTable = Table(state.tableModel)
+        scrollPane = JScrollPane(logTable)
+
+        tabs = JTabbedPane()
+        messageEditor = MessageEditorController(state)
+        state._requestViewer = callbacks.createMessageEditor(messageEditor, False)
+        state._responseViewer = callbacks.createMessageEditor(messageEditor, False)
+        tabs.addTab("Request", state._requestViewer.getComponent())
+        tabs.addTab("Response", state._responseViewer.getComponent())
+
+        splitpane.setLeftComponent(scrollPane)
+        splitpane.setRightComponent(tabs)
+
+        callbacks.customizeUiComponent(splitpane)
+        callbacks.customizeUiComponent(logTable)
+        callbacks.customizeUiComponent(scrollPane)
+        callbacks.customizeUiComponent(tabs)
+
+        return splitpane

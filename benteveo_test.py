@@ -21,7 +21,7 @@ class GenericMock(object):
     def getComponent(self, *args):
         class ComponentMock(Component):
             pass
-            
+
         return ComponentMock()
 
 class TestToolbox(unittest.TestCase):
@@ -29,7 +29,6 @@ class TestToolbox(unittest.TestCase):
     def testCanRunMainWithoutCrashing(self):
         be = BurpExtender()
         be.registerExtenderCallbacks(GenericMock())
-
 
 if __name__ == '__main__':
     unittest.main()
