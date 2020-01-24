@@ -38,6 +38,9 @@ class GenericMock(object):
 
         return ComponentMock()
 
+    def loadExtensionSetting(self, *args):
+        return "extensionSetting"
+
 class TestToolbox(unittest.TestCase):
 
     def testCanRunMainWithoutCrashing(self):

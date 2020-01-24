@@ -194,10 +194,10 @@ class HttpListener(IHttpListener):
         """
         New HTTP message is being sent by burp.
         """
-        if messageIsRequest:
-            return
-
-        logEntry = LogEntry(toolFlag, self.state._callbacks.saveBuffersToTempFiles(messageInfo), self.state._helpers.analyzeRequest(messageInfo).getUrl())
+        # if messageIsRequest:
+        #     return
+        #
+        # logEntry = LogEntry(toolFlag, self.state._callbacks.saveBuffersToTempFiles(messageInfo), self.state._helpers.analyzeRequest(messageInfo).getUrl())
         #self.state.endpointTableModel.addLogEntry(logEntry)
 
 class MessageEditorController(IMessageEditorController):
@@ -225,6 +225,8 @@ class ToolboxUI():
         Handles the building of the UI components using Swing, a UI library.
         """
 
+        self.callbacks = ToolboxCallbacks(state, callbacks)
+
         tabs = JTabbedPane()
         resultsPane = self.buildResultsPane(state, callbacks)
         configPane = self.buildConfigPane(state, callbacks)
@@ -232,9 +234,13 @@ class ToolboxUI():
         tabs.addTab("Results", resultsPane)
         tabs.addTab("Config", configPane)
 
+
         return tabs
 
     def buildResultsPane(self, state, callbacks):
+        """
+        Builds the results pane in the confiuration page
+        """
         splitpane = JSplitPane(JSplitPane.VERTICAL_SPLIT)
 
         requestTable = self.buildRequestTable(state, callbacks)
@@ -249,7 +255,9 @@ class ToolboxUI():
         return splitpane
 
     def buildConfigPane(self, state, callbacks):
-
+        """
+        Builds the config pane, section per section.
+        """
         configPage = Box.createVerticalBox()
         configPage.setBorder(BorderFactory.createLineBorder(Color.black));
 
@@ -260,24 +268,32 @@ class ToolboxUI():
         return configPage
 
     def buildScope(self, state, callbacks):
-
+        """
+        Builds the scope pane in the configuration page
+        """
         scope = JPanel()
         scope.setLayout(None)
         scope.setMaximumSize(Dimension(self.CONFIG_PAGE_WIDTH, 300))
 
         title = self.getTitle("Scope Selection", 20, 10)
 
-        button = self.getButton("Refresh", 20, 50)
+        refresh = self.getButton("Refresh", 20, 50)
+        refresh.addActionListener(self.callbacks.refreshButtonClicked)
 
         textarea = self.getTextArea()
+        state.scopeTextArea = textarea.viewport.view
+        state.scopeTextArea.setText(callbacks.loadExtensionSetting("scopes"))
 
         scope.add(title)
-        scope.add(button)
+        scope.add(refresh)
         scope.add(textarea)
 
         return scope
 
     def buildReplacementRules(self, state, callbacks):
+        """
+        Builds the replacement rules section in the configuration page
+        """
         rules = JPanel()
         rules.setLayout(None)
         rules.setMaximumSize(Dimension(self.CONFIG_PAGE_WIDTH, 300))
@@ -300,6 +316,9 @@ class ToolboxUI():
         return rules
 
     def buildSessionCheck(self, state, callbacks):
+        """
+        Builds the session check portion of the config page
+        """
         rules = JPanel()
         rules.setLayout(None)
         rules.setMaximumSize(Dimension(self.CONFIG_PAGE_WIDTH, 300))
@@ -319,12 +338,18 @@ class ToolboxUI():
         return rules
 
     def getButton(self, label, positionX, positionY):
+        """
+        Creates a JButton with a specific label and position
+        """
         button = JButton(label)
         button.setBounds(positionX, positionY, self.BUTTON_WIDTH, self.BUTTON_HEIGHT)
 
         return button
 
     def getTextArea(self):
+        """
+        Creates a scrollable textarea
+        """
         textarea = JTextArea()
         textarea.setBounds(180, 50, 800, 240)
         scrollPane = JScrollPane(textarea)
@@ -333,12 +358,18 @@ class ToolboxUI():
         return scrollPane
 
     def getTitle(self, content, positionX, positionY):
+        """
+        Creates a title for the configuration page.
+        """
         title = JLabel("<html><h2>" + content + "</h2></html>")
         title.setBounds(positionX, positionY, 1000, 30)
 
         return title
 
     def buildRequestTable(self, state, callbacks):
+        """
+        Builds the request list on the results page on the right.
+        """
         splitpane = JSplitPane()
         splitpane.setDividerLocation(1000)
 
@@ -358,6 +389,9 @@ class ToolboxUI():
         return splitpane
 
     def buildMessageViewer(self, state, callbacks):
+        """
+        Builds the panel that allows users to view requests on the results page.
+        """
         tabs = JTabbedPane()
         messageEditor = MessageEditorController(state)
         state._requestViewer = callbacks.createMessageEditor(messageEditor, False)
@@ -366,3 +400,15 @@ class ToolboxUI():
         tabs.addTab("Response", state._responseViewer.getComponent())
 
         return tabs
+
+class ToolboxCallbacks(object):
+    """
+    Handles all callbacks for Swing objects.
+    """
+    def __init__(self, state, burpCallbacks):
+        self.state = state
+        self.burpCallbacks = burpCallbacks
+
+    def refreshButtonClicked(self, event):
+        scopes = self.state.scopeTextArea.getText()
+        self.burpCallbacks.saveExtensionSetting("scopes", scopes)
