@@ -3,7 +3,7 @@ import unittest
 import operator
 from java.awt import Component
 from benteveo_toolbox import BurpExtender
-from classes import EndpointTableModel
+from classes import EndpointTableModel, ToolboxCallbacks
 
 class GenericMock(object):
     """
@@ -62,7 +62,15 @@ class TestToolbox(unittest.TestCase):
 
         self.assertEquals(hash, "GET|http://www.example.org/users")
 
+    def testRefreshPersistsSettings(self):
+        stateMock = GenericMock()
+        burpCallbackMock = GenericMock()
+        cb = ToolboxCallbacks(stateMock, burpCallbackMock)
 
+        cb.refreshButtonClicked(GenericMock())
+
+        self.assertEquals(stateMock.scopeTextArea.getText.call_count, 1)
+        self.assertEquals(burpCallbackMock.saveExtensionSetting.call_count, 1)
 
 if __name__ == '__main__':
     unittest.main()
