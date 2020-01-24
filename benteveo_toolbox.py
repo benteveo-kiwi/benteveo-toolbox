@@ -1,6 +1,6 @@
 from burp import IBurpExtender
 from classes import Table, Tab, HttpListener, MessageEditorController, \
-    ToolboxUI, EndpointTableModel, RequestTableModel
+    ToolboxUI, EndpointTableModel, RequestTableModel, ReplacementRulesTableModel
 
 class State(object):
     """
@@ -19,14 +19,14 @@ class BurpExtender(IBurpExtender):
         Burp initialisation function. Gets called when the extension is loaded and
         is in charge of building the UI.
         """
-        # add Burp utility functions to state so that they are accessible everywhere.
         state = State()
         state._callbacks = callbacks
         state._helpers = callbacks.getHelpers()
+
         state.endpointTableModel = EndpointTableModel(state)
         state.requestTableModel = RequestTableModel(state)
+        state.replacementRulesTableModel = ReplacementRulesTableModel(state)
 
-        # Add required callbacks.
         ui = ToolboxUI()
         splitpane = ui.buildUi(state, callbacks)
 

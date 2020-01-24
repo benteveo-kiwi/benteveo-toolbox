@@ -48,6 +48,37 @@ class EndpointModel(object):
         self.nb_same_len = 0
         self.requests = []
 
+class ReplacementRulesTableModel(AbstractTableModel):
+
+    cols = ["Rule type", "Detail"]
+
+    def __init__(self, state):
+        self._lock = Lock()
+        self.state = state
+        self.active_rules = {}
+
+    def getRowCount(self):
+        try:
+            return len(self.active_rules)
+        except:
+            return 0
+
+    def getColumnCount(self):
+        return len(self.cols)
+
+    def getColumnName(self, columnIndex):
+        return self.cols[columnIndex]
+
+    def getValueAt(self, rowIndex, columnIndex):
+        return
+        logEntry = self._log.get(rowIndex)
+        if columnIndex == 0:
+            return self.state._callbacks.getToolName(logEntry._tool)
+        if columnIndex == 1:
+            return logEntry._url.toString()
+        return ""
+
+
 class EndpointTableModel(AbstractTableModel):
 
     cols = ["Method", "URL", "#", "Same Status", "Same Len"]
@@ -223,8 +254,8 @@ class ToolboxUI():
         configPage.setBorder(BorderFactory.createLineBorder(Color.black));
 
         configPage.add(self.buildScope(state, callbacks))
-        configPage.add(JLabel("Replacement rules placeholder"))
-        configPage.add(JLabel("session check placeholder"))
+        configPage.add(self.buildReplacementRules(state, callbacks))
+        configPage.add(self.buildSessionCheck(state, callbacks))
 
         return configPage
 
@@ -234,15 +265,11 @@ class ToolboxUI():
         scope.setLayout(None)
         scope.setMaximumSize(Dimension(self.CONFIG_PAGE_WIDTH, 300))
 
-        title = self.getTitle("Scope Selection")
-        title.setBounds(20, 10, 1000, 30)
+        title = self.getTitle("Scope Selection", 20, 10)
 
-        button = JButton("Refresh")
-        button.setBounds(20, 50, self.BUTTON_WIDTH, self.BUTTON_HEIGHT)
+        button = self.getButton("Refresh", 20, 50)
 
-        textarea = JTextArea()
-        textarea.setBounds(180, 50, 800, 240)
-        textarea.setBorder(BorderFactory.createLineBorder(Color.black));
+        textarea = self.getTextArea()
 
         scope.add(title)
         scope.add(button)
@@ -250,8 +277,66 @@ class ToolboxUI():
 
         return scope
 
-    def getTitle(self, content):
-        return JLabel("<html><h2>" + content + "</h2></html>")
+    def buildReplacementRules(self, state, callbacks):
+        rules = JPanel()
+        rules.setLayout(None)
+        rules.setMaximumSize(Dimension(self.CONFIG_PAGE_WIDTH, 300))
+
+        title = self.getTitle("Replacement Rules", 20, 10)
+        add = self.getButton("Add", 20, 50)
+        edit = self.getButton("Edit", 20, 90)
+        delete = self.getButton("Delete", 20, 130)
+
+        table = Table(state.replacementRulesTableModel)
+        tableView = JScrollPane(table)
+        tableView.setBounds(180, 50, 800, 240)
+
+        rules.add(title)
+        rules.add(add)
+        rules.add(edit)
+        rules.add(delete)
+        rules.add(tableView)
+
+        return rules
+
+    def buildSessionCheck(self, state, callbacks):
+        rules = JPanel()
+        rules.setLayout(None)
+        rules.setMaximumSize(Dimension(self.CONFIG_PAGE_WIDTH, 300))
+
+        title = self.getTitle("Session Check", 20, 10)
+        check = self.getButton("Check", 20, 50)
+        run_all = self.getButton("Run ALL", 20, 90)
+        run_new = self.getButton("Run NEW", 20, 130)
+        textarea = self.getTextArea()
+
+        rules.add(title)
+        rules.add(check)
+        rules.add(run_all)
+        rules.add(run_new)
+        rules.add(textarea)
+
+        return rules
+
+    def getButton(self, label, positionX, positionY):
+        button = JButton(label)
+        button.setBounds(positionX, positionY, self.BUTTON_WIDTH, self.BUTTON_HEIGHT)
+
+        return button
+
+    def getTextArea(self):
+        textarea = JTextArea()
+        textarea.setBounds(180, 50, 800, 240)
+        scrollPane = JScrollPane(textarea)
+        scrollPane.setBounds(180, 50, 800, 240)
+
+        return scrollPane
+
+    def getTitle(self, content, positionX, positionY):
+        title = JLabel("<html><h2>" + content + "</h2></html>")
+        title.setBounds(positionX, positionY, 1000, 30)
+
+        return title
 
     def buildRequestTable(self, state, callbacks):
         splitpane = JSplitPane()
