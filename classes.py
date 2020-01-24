@@ -410,5 +410,17 @@ class ToolboxCallbacks(object):
         self.burpCallbacks = burpCallbacks
 
     def refreshButtonClicked(self, event):
+        """
+        Handles click of refresh button. This reloads the results page with the new scope.
+        """
         scopes = self.state.scopeTextArea.getText()
         self.burpCallbacks.saveExtensionSetting("scopes", scopes)
+
+        scope_urls = scopes.split("\n")
+        for url in scope_urls:
+            url = url.strip()
+            if not url:
+                continue
+            requests = self.burpCallbacks.getSiteMap(url)
+            for request in requests:
+                self.state.endpointTableModel.add(request)

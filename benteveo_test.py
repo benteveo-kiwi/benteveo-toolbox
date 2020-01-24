@@ -38,9 +38,6 @@ class GenericMock(object):
 
         return ComponentMock()
 
-    def loadExtensionSetting(self, *args):
-        return "extensionSetting"
-
 class TestToolbox(unittest.TestCase):
 
     def testCanRunMainWithoutCrashing(self):
@@ -63,14 +60,21 @@ class TestToolbox(unittest.TestCase):
         self.assertEquals(hash, "GET|http://www.example.org/users")
 
     def testRefreshPersistsSettings(self):
-        stateMock = GenericMock()
-        burpCallbackMock = GenericMock()
-        cb = ToolboxCallbacks(stateMock, burpCallbackMock)
+        state = GenericMock()
+        burpCallbacks = GenericMock()
+        cb = ToolboxCallbacks(state, burpCallbacks)
+
+        state.scopeTextArea.getText.return_value = "https://example.com/\nhttps://example.org/\n"
+        burpCallbacks.getSiteMap.return_value = [GenericMock(),GenericMock(),GenericMock()]
+        burpCallbacks.loadExtensionSetting.return_value = "extensionSetting"
 
         cb.refreshButtonClicked(GenericMock())
 
-        self.assertEquals(stateMock.scopeTextArea.getText.call_count, 1)
-        self.assertEquals(burpCallbackMock.saveExtensionSetting.call_count, 1)
+
+        self.assertEquals(state.scopeTextArea.getText.call_count, 1)
+        self.assertEquals(burpCallbacks.saveExtensionSetting.call_count, 1)
+        self.assertEquals(burpCallbacks.getSiteMap.call_count, 2)
+        self.assertEquals(state.endpointTableModel.add.call_count, 6)
 
 if __name__ == '__main__':
     unittest.main()
