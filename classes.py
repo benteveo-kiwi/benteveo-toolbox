@@ -9,6 +9,19 @@ from javax.swing import JScrollPane
 from javax.swing import JSplitPane
 from javax.swing import JTabbedPane
 from javax.swing import SwingUtilities
+from javax.swing import BoxLayout
+from javax.swing import JPanel
+from javax.swing import JLabel
+from javax.swing import JButton
+from javax.swing import JTextArea
+from javax.swing import Box
+from javax.swing import BorderFactory
+from java.awt import Color
+from java.awt import Dimension
+from java.awt import GridBagConstraints
+from java.awt import GridBagLayout
+from java.awt import BorderLayout
+from java.awt import FlowLayout
 from java.awt import Component
 
 class Table(JTable):
@@ -171,6 +184,11 @@ class MessageEditorController(IMessageEditorController):
         return self.state._currentlyDisplayedItem.getResponse()
 
 class ToolboxUI():
+
+    BUTTON_WIDTH = 140
+    BUTTON_HEIGHT = 30
+    CONFIG_PAGE_WIDTH = 2000
+
     def buildUi(self, state, callbacks):
         """
         Handles the building of the UI components using Swing, a UI library.
@@ -178,8 +196,10 @@ class ToolboxUI():
 
         tabs = JTabbedPane()
         resultsPane = self.buildResultsPane(state, callbacks)
+        configPane = self.buildConfigPane(state, callbacks)
 
         tabs.addTab("Results", resultsPane)
+        tabs.addTab("Config", configPane)
 
         return tabs
 
@@ -196,6 +216,42 @@ class ToolboxUI():
         callbacks.customizeUiComponent(tabs)
 
         return splitpane
+
+    def buildConfigPane(self, state, callbacks):
+
+        configPage = Box.createVerticalBox()
+        configPage.setBorder(BorderFactory.createLineBorder(Color.black));
+
+        configPage.add(self.buildScope(state, callbacks))
+        configPage.add(JLabel("Replacement rules placeholder"))
+        configPage.add(JLabel("session check placeholder"))
+
+        return configPage
+
+    def buildScope(self, state, callbacks):
+
+        scope = JPanel()
+        scope.setLayout(None)
+        scope.setMaximumSize(Dimension(self.CONFIG_PAGE_WIDTH, 300))
+
+        title = self.getTitle("Scope Selection")
+        title.setBounds(20, 10, 1000, 30)
+
+        button = JButton("Refresh")
+        button.setBounds(20, 50, self.BUTTON_WIDTH, self.BUTTON_HEIGHT)
+
+        textarea = JTextArea()
+        textarea.setBounds(180, 50, 800, 240)
+        textarea.setBorder(BorderFactory.createLineBorder(Color.black));
+
+        scope.add(title)
+        scope.add(button)
+        scope.add(textarea)
+
+        return scope
+
+    def getTitle(self, content):
+        return JLabel("<html><h2>" + content + "</h2></html>")
 
     def buildRequestTable(self, state, callbacks):
         splitpane = JSplitPane()

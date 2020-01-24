@@ -45,7 +45,6 @@ class TestToolbox(unittest.TestCase):
         mock = GenericMock()
         be.registerExtenderCallbacks(mock)
 
-        print mock.setExtensionName
         self.assertEqual(mock.setExtensionName.call_count, 1)
 
     def testGenerateEndpointHash(self):
@@ -59,6 +58,7 @@ class TestToolbox(unittest.TestCase):
         hash = etm.generateEndpointHash(GenericMock())
 
         self.assertEquals(hash, "GET|http://www.example.org/users")
+
 
 
 if __name__ == '__main__':
