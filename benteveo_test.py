@@ -4,7 +4,7 @@ import operator
 from collections import OrderedDict
 from java.awt import Component
 from benteveo_toolbox import BurpExtender
-from classes import EndpointTableModel, ToolboxCallbacks, EndpointModel, RequestModel
+from classes import EndpointTableModel, ToolboxCallbacks, EndpointModel, RequestModel, RequestTableModel
 from java.net import URL
 
 class GenericMock(object):
@@ -61,7 +61,10 @@ class TestToolbox(unittest.TestCase):
         if not dict:
             dict = OrderedDict()
 
-        request = RequestModel(GenericMock())
+        analyzedRequest = GenericMock()
+        analyzedRequest.method = method
+        analyzedRequest.url = url
+        request = RequestModel(GenericMock(), analyzedRequest)
 
         hash = method + "|" + url
 
@@ -82,6 +85,15 @@ class TestToolbox(unittest.TestCase):
 
         return etm, state, callbacks
 
+    def _crtm(self):
+        """
+        Create RequestTableModel convenience function.
+        """
+        state = GenericMock()
+        callbacks = GenericMock()
+        rtm = RequestTableModel(state, callbacks)
+
+        return rtm, state, callbacks
 
     def testCanRunMainWithoutCrashing(self):
         be = BurpExtender()
@@ -175,6 +187,30 @@ class TestToolbox(unittest.TestCase):
 
         self.assertEquals(state.requestsTableModel.updateRequests.call_count, 1)
         self.assertEquals(len(state.requestsTableModel.updateRequests.call_args[0]), 2)
+
+    def testRequestsTableModelUpdateMethod(self):
+        rtm, state, callback = self._crtm()
+
+        rtm.fireTableRowsInserted = GenericMock()
+
+        dict = self._cem("GET", "http://www.example.org/users")
+        dict = self._cem("GET", "http://www.example.org/users", dict)
+
+        rtm.updateRequests(dict["GET|http://www.example.org/users"].requests)
+
+        self.assertTrue(len(rtm.requests), 2)
+        self.assertTrue(rtm.fireTableRowsInserted.call_count, 1)
+        self.assertTrue(rtm.fireTableRowsInserted.call_args, (0, 1))
+
+    def testRequestsTableModelGetValueAt(self):
+        rtm, state, callback = self._crtm()
+
+        dict = self._cem("GET", "http://www.example.org/users")
+        dict = self._cem("GET", "http://www.example.org/users", dict)
+
+        rtm.requests = dict["GET|http://www.example.org/users"].requests
+
+        print rtm.getValueAt(0, 0)
 
 
 

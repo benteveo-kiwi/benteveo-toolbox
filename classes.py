@@ -26,19 +26,30 @@ from java.awt import Component
 from collections import OrderedDict
 
 class Table(JTable):
+    """
+    Generic table for all tables in our UI.
+    """
     def __init__(self, model):
+        """
+        Constructor function.
+
+        Args:
+            model: an object that implements AbstractTableModel, such as RequestTableModel.
+        """
         self.model = model
 
     def changeSelection(self, row, col, toggle, extend):
+        """
+        Called by Swing when a hacker clicks on a row. Calls selectRow on our TableModel and then calls the parent function to handle highlighting of the clicked cell and etc.
+
+        Args:
+            row: row number
+            col: col number
+            toggle: whether to toggle the selection upon this click.
+            extend: whether to extend the selection and have two or more rows selected.
+        """
         self.model.selectRow(row)
         JTable.changeSelection(self, row, col, toggle, extend)
-        return
-        # show the log entry for the selected row
-        logEntry = self._extender._log.get(row)
-        self._extender.state._requestViewer.setMessage(logEntry._requestResponse.getRequest(), True)
-        self._extender.state._responseViewer.setMessage(logEntry._requestResponse.getResponse(), False)
-        self._extender.state._currentlyDisplayedItem = logEntry._requestResponse
-
 
 class ReplacementRulesTableModel(AbstractTableModel):
 
@@ -84,8 +95,19 @@ class EndpointModel(object):
         self.requests.append(requestModel)
 
 class RequestModel(object):
-    def __init__(self, httpRequestResponse):
+    """
+    Model that represents requests on the right panel on the results page.
+    """
+    def __init__(self, httpRequestResponse, analyzedRequest):
+        """
+        Main constructor.
+
+        Args:
+            httpRequestResponse: a httpRequestResponse as returned by burp apis.
+            analyzedRequest: an object as returned by analyzeRequest(httpRequestResponse).
+        """
         self.httpRequestResponse = httpRequestResponse
+        self.analyzedRequest = analyzedRequest
         self.repeated = False
 
 class EndpointTableModel(AbstractTableModel):
@@ -109,13 +131,13 @@ class EndpointTableModel(AbstractTableModel):
         """
         self._lock.acquire()
 
-        request = self.callbacks.helpers.analyzeRequest(httpRequestResponse)
+        analyzedRequest = self.callbacks.helpers.analyzeRequest(httpRequestResponse)
 
-        hash, url, method = self.generateEndpointHash(request)
+        hash, url, method = self.generateEndpointHash(analyzedRequest)
         if hash not in self.endpoints:
             self.endpoints[hash] = EndpointModel(method, url)
 
-        self.endpoints[hash].add(RequestModel(httpRequestResponse))
+        self.endpoints[hash].add(RequestModel(httpRequestResponse, analyzedRequest))
 
         added_at_index = len(self.endpoints)
         self.fireTableRowsInserted(added_at_index, added_at_index)
@@ -208,7 +230,7 @@ class RequestTableModel(AbstractTableModel):
     Table model for the requests panel on the Results tab on the right.
     """
 
-    cols = ["Query String", "Orig Status", "Status", "Orig Len", "Resp Len", "Diff"]
+    cols = ["URL", "Orig Status", "Status", "Orig Len", "Resp Len", "Diff"]
 
     def __init__(self, state, callbacks):
         """
@@ -221,6 +243,7 @@ class RequestTableModel(AbstractTableModel):
         self.requests = []
         self._lock = Lock()
         self.state = state
+        self.callbacks = callbacks
 
     def getRowCount(self):
         """
@@ -254,7 +277,7 @@ class RequestTableModel(AbstractTableModel):
             rowIndex: y value to return the value for.
             columnIndex: x value to return the value for.
         """
-        return
+        request = self.requests[rowIndex]
 
     def updateRequests(self, requests):
         """
@@ -265,12 +288,13 @@ class RequestTableModel(AbstractTableModel):
         Args:
             requests: an array of requests to replace the current requests with.
         """
-        return
-        # self._lock.acquire()
-        # row = self._log.size()
-        # self._log.add(logEntry)
-        # self.fireTableRowsInserted(row, row)
-        # self._lock.release()
+        self._lock.acquire()
+
+        nb_requests = len(requests)
+        self.requests = requests
+        self.fireTableRowsInserted(0, nb_requests - 1)
+
+        self._lock.release()
 
 class Tab(ITab):
     def __init__(self, splitpane):
