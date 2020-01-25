@@ -175,10 +175,13 @@ class EndpointTableModel(AbstractTableModel):
         """
         Gets called when a hacker clicks on a row.
 
+        In the case of this particular model, a click triggers an event on the RequestsTableModel that causes it to display the requests that have been sent to this endpoint.
+
         Args:
             rowIndex: the row that was clicked.
         """
-        print self.getEndpoint(rowIndex)
+        endpoint = self.getEndpoint(rowIndex)
+        self.state.requestsTableModel.updateRequests(endpoint.requests)
 
     def getValueAt(self, rowIndex, columnIndex):
         """

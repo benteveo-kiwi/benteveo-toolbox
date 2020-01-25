@@ -32,6 +32,7 @@ class GenericMock(object):
 
     def __call__(self, *args):
         self.call_count += 1
+        self.call_args = args
         return self.return_value
 
     def getComponent(self, *args):
@@ -63,10 +64,24 @@ class TestToolbox(unittest.TestCase):
         request = RequestModel(GenericMock())
 
         hash = method + "|" + url
-        dict[hash] = EndpointModel(method, url)
+
+        if not hash in dict:
+            dict[hash] = EndpointModel(method, url)
+
         dict[hash].add(request)
 
         return dict
+
+    def _cetm(self):
+        """
+        Create EndpointTableModel convenience function
+        """
+        state = GenericMock()
+        callbacks = GenericMock()
+        etm = EndpointTableModel(state, callbacks)
+
+        return etm, state, callbacks
+
 
     def testCanRunMainWithoutCrashing(self):
         be = BurpExtender()
@@ -134,9 +149,7 @@ class TestToolbox(unittest.TestCase):
         self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].method, "GET")
 
     def testEndpointTableModelGetValueAt(self):
-        state = GenericMock()
-        callbacks = GenericMock()
-        etm = EndpointTableModel(state, callbacks)
+        etm, state, callbacks = self._cetm()
 
         dict = self._cem("GET", "http://www.example.org/users")
         dict = self._cem("GET", "http://www.example.org/profiles", dict)
@@ -152,7 +165,17 @@ class TestToolbox(unittest.TestCase):
         self.assertEquals(etm.getValueAt(1, 4), 0)
 
     def testTableCallsModel(self):
-        self.assertTrue(False)
+        etm, state, callbacks = self._cetm()
+
+        dict = self._cem("GET", "http://www.example.org/users")
+        dict = self._cem("GET", "http://www.example.org/users", dict)
+        etm.endpoints = dict
+
+        etm.selectRow(0)
+
+        self.assertEquals(state.requestsTableModel.updateRequests.call_count, 1)
+        self.assertEquals(len(state.requestsTableModel.updateRequests.call_args[0]), 2)
+
 
 
 if __name__ == '__main__':
