@@ -38,6 +38,9 @@ class GenericMock(object):
 
         return ComponentMock()
 
+    def loadExtensionSetting(self, *args):
+        return "setting"
+
 class TestToolbox(unittest.TestCase):
 
     def testCanRunMainWithoutCrashing(self):
@@ -51,11 +54,11 @@ class TestToolbox(unittest.TestCase):
         state = GenericMock()
         etm = EndpointTableModel(state)
 
-        ret = state.helpers.analyzeRequest.return_value
-        ret.method = "GET"
-        ret.url = "http://www.example.org/users"
+        mockRequestInfo = GenericMock()
+        mockRequestInfo.method = "GET"
+        mockRequestInfo.url = "http://www.example.org/users"
 
-        hash = etm.generateEndpointHash(GenericMock())
+        hash = etm.generateEndpointHash(mockRequestInfo)
 
         self.assertEquals(hash, "GET|http://www.example.org/users")
 
@@ -66,15 +69,27 @@ class TestToolbox(unittest.TestCase):
 
         state.scopeTextArea.getText.return_value = "https://example.com/\nhttps://example.org/\n"
         burpCallbacks.getSiteMap.return_value = [GenericMock(),GenericMock(),GenericMock()]
-        burpCallbacks.loadExtensionSetting.return_value = "extensionSetting"
 
         cb.refreshButtonClicked(GenericMock())
-
 
         self.assertEquals(state.scopeTextArea.getText.call_count, 1)
         self.assertEquals(burpCallbacks.saveExtensionSetting.call_count, 1)
         self.assertEquals(burpCallbacks.getSiteMap.call_count, 2)
         self.assertEquals(state.endpointTableModel.add.call_count, 6)
+
+    def testAddEndpointTableModelSimple(self):
+        state = GenericMock()
+        etm = EndpointTableModel(state)
+
+        ret = state.helpers.analyzeRequest.return_value
+        ret.method = "GET"
+        ret.url = "http://www.example.org/users"
+
+        etm.add(GenericMock())
+
+        self.assertEqual(len(etm.endpoints), 1)
+        self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].url, "http://www.example.org/users")
+        self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].method, "GET")
 
 if __name__ == '__main__':
     unittest.main()

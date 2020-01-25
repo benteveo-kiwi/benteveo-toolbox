@@ -39,15 +39,6 @@ class Table(JTable):
 
         JTable.changeSelection(self, row, col, toggle, extend)
 
-class EndpointModel(object):
-    def __init__(self, method, url):
-        self.method = method
-        self.url = url
-        self.nb = 0
-        self.nb_same_status = 0
-        self.nb_same_len = 0
-        self.requests = []
-
 class ReplacementRulesTableModel(AbstractTableModel):
 
     cols = ["Rule type", "Detail"]
@@ -78,6 +69,23 @@ class ReplacementRulesTableModel(AbstractTableModel):
             return logEntry._url.toString()
         return ""
 
+class EndpointModel(object):
+    def __init__(self, method, url):
+        self.method = method
+        self.url = url
+        self.nb = 0
+        self.nb_same_status = 0
+        self.nb_same_len = 0
+        self.requests = []
+
+    def add(self, requestModel):
+        self.nb += 1
+        self.requests.append(requestModel)
+
+class RequestModel(object):
+    def __init__(self, httpRequestResponse):
+        self.httpRequestResponse = httpRequestResponse
+        self.repeated = False
 
 class EndpointTableModel(AbstractTableModel):
 
@@ -88,36 +96,78 @@ class EndpointTableModel(AbstractTableModel):
         self.state = state
         self.endpoints = {}
 
-    def generateEndpointHash(self, httpRequestResponse):
+    def add(self, httpRequestResponse):
+        """
+        Adds a http request to the internal state and fires the trigger for a reload of the table.
+
+        This is called both by a click on the "refresh" button, which fetches requests from previous requests and by processHttpMessage which fetches requests as they occur.
+
+        Args:
+        httpRequestResponse: an HttpRequestResponse java object as returned by burp.
+        """
+        self._lock.acquire()
+
+        request = self.state.helpers.analyzeRequest(httpRequestResponse)
+        url = request.url
+        method = request.method
+
+        hash = self.generateEndpointHash(request)
+        if hash not in self.endpoints:
+            self.endpoints[hash] = EndpointModel(method, url)
+
+        self.endpoints[hash].add(RequestModel(httpRequestResponse))
+
+        added_at_index = len(self.endpoints)
+        self.fireTableRowsInserted(added_at_index, added_at_index)
+
+        self._lock.release()
+
+    def generateEndpointHash(self, analyzedRequest):
         """
         In this endpoint, a hash is a string that is used to group requests.
 
         Requests that have the same URL and method should be grouped together to avoid duplication of testing effort.
 
         Args:
-            httpRequestResponse: an HttpRequestResponse java object as returned by burp.
+            analyzedRequest: an analyzed request as returned by helpers.analyzeRequest()
         """
-
-        request = self.state.helpers.analyzeRequest(httpRequestResponse)
-
-        method = request.method
-        url = request.url
+        method = analyzedRequest.method
+        url = analyzedRequest.url
 
         return method + "|" + url
 
     def getRowCount(self):
+        """
+        Returns the number of rows so that swing can create the table.
+        """
         try:
             return len(self.endpoints)
         except:
             return 0
 
     def getColumnCount(self):
+        """
+        Returns the number of columns so that Swing can create the table.
+        """
         return len(self.cols)
 
     def getColumnName(self, columnIndex):
+        """
+        Returns the column name at an individual index so that Swing can create the table.
+
+        Args:
+            columnIndex: the column index to get the column name for.
+        """
         return self.cols[columnIndex]
 
     def getValueAt(self, rowIndex, columnIndex):
+        """
+        Gets the value for each individual cell.
+
+        Args:
+            rowIndex: the y value to fetch the value for.
+            columnIndex: the
+        """
         return
         logEntry = self._log.get(rowIndex)
         if columnIndex == 0:
@@ -125,14 +175,6 @@ class EndpointTableModel(AbstractTableModel):
         if columnIndex == 1:
             return logEntry._url.toString()
         return ""
-
-    # def addLogEntry(self, logEntry):
-    #     return
-    #     self._lock.acquire()
-    #     row = self._log.size()
-    #     self._log.add(logEntry)
-    #     self.fireTableRowsInserted(row, row)
-    #     self._lock.release()
 
 class RequestTableModel(AbstractTableModel):
 
@@ -421,6 +463,7 @@ class ToolboxCallbacks(object):
             url = url.strip()
             if not url:
                 continue
+
             requests = self.burpCallbacks.getSiteMap(url)
             for request in requests:
                 self.state.endpointTableModel.add(request)
