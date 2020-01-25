@@ -151,6 +151,9 @@ class TestToolbox(unittest.TestCase):
         self.assertEquals(etm.getValueAt(1, 3), 0)
         self.assertEquals(etm.getValueAt(1, 4), 0)
 
+    def testTableCallsModel(self):
+        self.assertTrue(False)
+
 
 if __name__ == '__main__':
     unittest.main()
