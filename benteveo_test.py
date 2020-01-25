@@ -76,7 +76,8 @@ class TestToolbox(unittest.TestCase):
 
     def testGenerateEndpointHash(self):
         state = GenericMock()
-        etm = EndpointTableModel(state)
+        callbacks = GenericMock()
+        etm = EndpointTableModel(state, callbacks)
 
         mockRequestInfo = GenericMock()
         mockRequestInfo.method = "GET"
@@ -103,9 +104,10 @@ class TestToolbox(unittest.TestCase):
 
     def testAddEndpointTableModelSimple(self):
         state = GenericMock()
-        etm = EndpointTableModel(state)
+        callbacks = GenericMock()
+        etm = EndpointTableModel(state, callbacks)
 
-        ret = state.helpers.analyzeRequest.return_value
+        ret = callbacks.helpers.analyzeRequest.return_value
         ret.method = "GET"
         ret.url = "http://www.example.org/users"
 
@@ -117,7 +119,8 @@ class TestToolbox(unittest.TestCase):
 
     def testEndpointTableModelGetValueAt(self):
         state = GenericMock()
-        etm = EndpointTableModel(state)
+        callbacks = GenericMock()
+        etm = EndpointTableModel(state, callbacks)
 
         dict = self._cem("GET", "http://www.example.org/users")
         dict = self._cem("GET", "http://www.example.org/profiles", dict)

@@ -92,9 +92,10 @@ class EndpointTableModel(AbstractTableModel):
 
     cols = ["Method", "URL", "#", "Same Status", "Same Len"]
 
-    def __init__(self, state):
+    def __init__(self, state, callbacks):
         self._lock = Lock()
         self.state = state
+        self.callbacks = callbacks
         self.endpoints = OrderedDict()
 
     def add(self, httpRequestResponse):
@@ -108,7 +109,7 @@ class EndpointTableModel(AbstractTableModel):
         """
         self._lock.acquire()
 
-        request = self.state.helpers.analyzeRequest(httpRequestResponse)
+        request = self.callbacks.helpers.analyzeRequest(httpRequestResponse)
         url = request.url
         method = request.method
 
