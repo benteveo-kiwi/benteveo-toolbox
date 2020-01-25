@@ -23,6 +23,7 @@ from java.awt import GridBagLayout
 from java.awt import BorderLayout
 from java.awt import FlowLayout
 from java.awt import Component
+from collections import OrderedDict
 
 class Table(JTable):
     def __init__(self, extender):
@@ -94,7 +95,7 @@ class EndpointTableModel(AbstractTableModel):
     def __init__(self, state):
         self._lock = Lock()
         self.state = state
-        self.endpoints = {}
+        self.endpoints = OrderedDict()
 
     def add(self, httpRequestResponse):
         """
@@ -166,15 +167,19 @@ class EndpointTableModel(AbstractTableModel):
 
         Args:
             rowIndex: the y value to fetch the value for.
-            columnIndex: the
+            columnIndex: the y value to fetch the value for.
         """
-        return
-        logEntry = self._log.get(rowIndex)
+        endpointModel = self.endpoints.items()[rowIndex][1]
         if columnIndex == 0:
-            return self.state._callbacks.getToolName(logEntry._tool)
-        if columnIndex == 1:
-            return logEntry._url.toString()
-        return ""
+            return endpointModel.method
+        elif columnIndex == 1:
+            return endpointModel.url
+        elif columnIndex == 2:
+            return len(endpointModel.requests)
+        elif columnIndex == 3:
+            return endpointModel.nb_same_status
+        elif columnIndex == 4:
+            return endpointModel.nb_same_len
 
 class RequestTableModel(AbstractTableModel):
 

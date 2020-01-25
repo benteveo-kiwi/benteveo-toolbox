@@ -1,9 +1,10 @@
 import math
 import unittest
 import operator
+from collections import OrderedDict
 from java.awt import Component
 from benteveo_toolbox import BurpExtender
-from classes import EndpointTableModel, ToolboxCallbacks
+from classes import EndpointTableModel, ToolboxCallbacks, EndpointModel, RequestModel
 
 class GenericMock(object):
     """
@@ -42,6 +43,29 @@ class GenericMock(object):
         return "setting"
 
 class TestToolbox(unittest.TestCase):
+
+    def _cem(self, method, url, dict=None):
+        """
+        Creates EndpointModel convenience function.
+
+        Returns a OrderedDict with the added endpoint module. Optionally, you may pass a dict that will be added to and then returned.
+
+        Args:
+            method: a method, e.g. "GET"
+            url: a url, e.g. "http://www.example.org/"
+            dict: a dict. If set that dict will be inserted into instead of a new one created.
+        """
+
+        if not dict:
+            dict = OrderedDict()
+
+        request = RequestModel(GenericMock())
+
+        hash = method + "|" + url
+        dict[hash] = EndpointModel(method, url)
+        dict[hash].add(request)
+
+        return dict
 
     def testCanRunMainWithoutCrashing(self):
         be = BurpExtender()
@@ -90,6 +114,24 @@ class TestToolbox(unittest.TestCase):
         self.assertEqual(len(etm.endpoints), 1)
         self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].url, "http://www.example.org/users")
         self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].method, "GET")
+
+    def testEndpointTableModelGetValueAt(self):
+        state = GenericMock()
+        etm = EndpointTableModel(state)
+
+        dict = self._cem("GET", "http://www.example.org/users")
+        dict = self._cem("GET", "http://www.example.org/profiles", dict)
+        etm.endpoints = dict
+
+        self.assertEquals(etm.getValueAt(0, 0), "GET")
+        self.assertEquals(etm.getValueAt(0, 1), "http://www.example.org/users")
+
+        self.assertEquals(etm.getValueAt(1, 0), "GET")
+        self.assertEquals(etm.getValueAt(1, 1), "http://www.example.org/profiles")
+        self.assertEquals(etm.getValueAt(1, 2), 1)
+        self.assertEquals(etm.getValueAt(1, 3), 0)
+        self.assertEquals(etm.getValueAt(1, 4), 0)
+
 
 if __name__ == '__main__':
     unittest.main()
