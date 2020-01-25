@@ -24,7 +24,7 @@ class BurpExtender(IBurpExtender):
         state._helpers = callbacks.getHelpers()
 
         state.endpointTableModel = EndpointTableModel(state, callbacks)
-        state.requestTableModel = RequestTableModel(state)
+        state.requestTableModel = RequestTableModel(state, callbacks)
         state.replacementRulesTableModel = ReplacementRulesTableModel(state)
 
         ui = ToolboxUI()

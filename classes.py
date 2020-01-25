@@ -26,19 +26,19 @@ from java.awt import Component
 from collections import OrderedDict
 
 class Table(JTable):
-    def __init__(self, extender):
-        self._extender = extender
-        self.setModel(extender)
+    def __init__(self, model):
+        self.model = model
 
     def changeSelection(self, row, col, toggle, extend):
-
+        self.model.selectRow(row)
+        JTable.changeSelection(self, row, col, toggle, extend)
+        return
         # show the log entry for the selected row
         logEntry = self._extender._log.get(row)
         self._extender.state._requestViewer.setMessage(logEntry._requestResponse.getRequest(), True)
         self._extender.state._responseViewer.setMessage(logEntry._requestResponse.getResponse(), False)
         self._extender.state._currentlyDisplayedItem = logEntry._requestResponse
 
-        JTable.changeSelection(self, row, col, toggle, extend)
 
 class ReplacementRulesTableModel(AbstractTableModel):
 
@@ -110,10 +110,8 @@ class EndpointTableModel(AbstractTableModel):
         self._lock.acquire()
 
         request = self.callbacks.helpers.analyzeRequest(httpRequestResponse)
-        url = request.url
-        method = request.method
 
-        hash = self.generateEndpointHash(request)
+        hash, url, method = self.generateEndpointHash(request)
         if hash not in self.endpoints:
             self.endpoints[hash] = EndpointModel(method, url)
 
@@ -133,10 +131,10 @@ class EndpointTableModel(AbstractTableModel):
         Args:
             analyzedRequest: an analyzed request as returned by helpers.analyzeRequest()
         """
+        url = analyzedRequest.url.toString().split("?")[0]
         method = analyzedRequest.method
-        url = analyzedRequest.url
 
-        return method + "|" + url
+        return method + "|" + url, url, method
 
     def getRowCount(self):
         """
@@ -162,6 +160,26 @@ class EndpointTableModel(AbstractTableModel):
         """
         return self.cols[columnIndex]
 
+    def getEndpoint(self, rowIndex):
+        """
+        Gets EndpointModel at specific row.
+
+        Because our endpoints item is not a list, we are required to do some extra function calls.
+
+        Args:
+            rowIndex: specific row to fetch the EndpointModel for.
+        """
+        return self.endpoints.items()[rowIndex][1]
+
+    def selectRow(self, rowIndex):
+        """
+        Gets called when a hacker clicks on a row.
+
+        Args:
+            rowIndex: the row that was clicked.
+        """
+        print self.getEndpoint(rowIndex)
+
     def getValueAt(self, rowIndex, columnIndex):
         """
         Gets the value for each individual cell.
@@ -170,7 +188,7 @@ class EndpointTableModel(AbstractTableModel):
             rowIndex: the y value to fetch the value for.
             columnIndex: the y value to fetch the value for.
         """
-        endpointModel = self.endpoints.items()[rowIndex][1]
+        endpointModel = self.getEndpoint(rowIndex)
         if columnIndex == 0:
             return endpointModel.method
         elif columnIndex == 1:
@@ -183,40 +201,73 @@ class EndpointTableModel(AbstractTableModel):
             return endpointModel.nb_same_len
 
 class RequestTableModel(AbstractTableModel):
+    """
+    Table model for the requests panel on the Results tab on the right.
+    """
 
-    cols = ["Orig Status", "Status", "Orig Len", "Resp Len", "Diff"]
+    cols = ["Query String", "Orig Status", "Status", "Orig Len", "Resp Len", "Diff"]
 
-    def __init__(self, state):
-        self._log = ArrayList()
+    def __init__(self, state, callbacks):
+        """
+        Initialization function.
+
+        Args:
+            state: the general state object.
+            callbacks: burp callbacks
+        """
+        self.requests = []
         self._lock = Lock()
         self.state = state
 
     def getRowCount(self):
+        """
+        Returns the number of elements in this table.
+        """
         try:
-            return self._log.size()
+            return self.requests.size()
         except:
             return 0
 
     def getColumnCount(self):
+        """
+        Returns the number of columns in this table.
+        """
         return len(self.cols)
 
     def getColumnName(self, columnIndex):
+        """
+        Gets the name for the column at this particular position.
+
+        Args:
+            columnIndex: the index to fetch the column name for.
+        """
         return self.cols[columnIndex]
 
     def getValueAt(self, rowIndex, columnIndex):
-        logEntry = self._log.get(rowIndex)
-        if columnIndex == 0:
-            return self.state._callbacks.getToolName(logEntry._tool)
-        if columnIndex == 1:
-            return logEntry._url.toString()
-        return ""
+        """
+        Returns the corresponding value for the request at the position specified by the parameters.
 
-    def addLogEntry(self, logEntry):
-        self._lock.acquire()
-        row = self._log.size()
-        self._log.add(logEntry)
-        self.fireTableRowsInserted(row, row)
-        self._lock.release()
+        Args:
+            rowIndex: y value to return the value for.
+            columnIndex: x value to return the value for.
+        """
+        return
+
+    def updateRequests(self, requests):
+        """
+        Replaces the requests we are currently displaying with a new set of requests.
+
+        Gets fired when a user clicks on the endpoint table.
+
+        Args:
+            requests: an array of requests to replace the current requests with.
+        """
+        return
+        # self._lock.acquire()
+        # row = self._log.size()
+        # self._log.add(logEntry)
+        # self.fireTableRowsInserted(row, row)
+        # self._lock.release()
 
 class Tab(ITab):
     def __init__(self, splitpane):

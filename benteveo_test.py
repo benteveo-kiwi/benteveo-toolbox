@@ -5,6 +5,7 @@ from collections import OrderedDict
 from java.awt import Component
 from benteveo_toolbox import BurpExtender
 from classes import EndpointTableModel, ToolboxCallbacks, EndpointModel, RequestModel
+from java.net import URL
 
 class GenericMock(object):
     """
@@ -81,9 +82,9 @@ class TestToolbox(unittest.TestCase):
 
         mockRequestInfo = GenericMock()
         mockRequestInfo.method = "GET"
-        mockRequestInfo.url = "http://www.example.org/users"
+        mockRequestInfo.url = URL("http://www.example.org/users")
 
-        hash = etm.generateEndpointHash(mockRequestInfo)
+        hash, _, _ = etm.generateEndpointHash(mockRequestInfo)
 
         self.assertEquals(hash, "GET|http://www.example.org/users")
 
@@ -109,7 +110,22 @@ class TestToolbox(unittest.TestCase):
 
         ret = callbacks.helpers.analyzeRequest.return_value
         ret.method = "GET"
-        ret.url = "http://www.example.org/users"
+        ret.url = URL("http://www.example.org/users")
+
+        etm.add(GenericMock())
+
+        self.assertEqual(len(etm.endpoints), 1)
+        self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].url, "http://www.example.org/users")
+        self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].method, "GET")
+
+    def testAddEndpointTableModelWithQueryString(self):
+        state = GenericMock()
+        callbacks = GenericMock()
+        etm = EndpointTableModel(state, callbacks)
+
+        ret = callbacks.helpers.analyzeRequest.return_value
+        ret.method = "GET"
+        ret.url = URL("http://www.example.org/users?count=50")
 
         etm.add(GenericMock())
 
