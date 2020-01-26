@@ -226,16 +226,15 @@ class TestToolbox(unittest.TestCase):
 
         rtm.updateRequests(dict["GET|http://www.example.org/users"].requests)
 
-        self.assertTrue(len(rtm.requests), 2)
-        self.assertTrue(rtm.fireTableRowsInserted.call_count, 1)
-        self.assertTrue(rtm.fireTableRowsInserted.call_args, (0, 1))
+        self.assertEquals(len(rtm.requests), 2)
+        self.assertEquals(rtm.fireTableRowsInserted.call_count, 1)
+        self.assertEquals(rtm.fireTableRowsInserted.call_args, (0, 1))
 
     def testRequestsTableModelGetValueAt(self):
         rtm, state, callback = self._crtm()
 
         dict = self._cem("GET", "http://www.example.org/users")
         dict = self._cem("GET", "http://www.example.org/users?userId=300", dict)
-
         rtm.requests = dict["GET|http://www.example.org/users"].requests
 
         self.assertEquals(rtm.getValueAt(0, 0), "/users")
@@ -245,7 +244,20 @@ class TestToolbox(unittest.TestCase):
         self.assertEquals(rtm.getValueAt(0, 4), "")
         self.assertEquals(rtm.getValueAt(0, 4), "")
 
-        self.assertTrue(rtm.getValueAt(1, 0), "/users?userId=300")
+        self.assertEquals(rtm.getValueAt(1, 0), "/users?userId=300")
+
+    def testRequestsTableModelSelectRow(self):
+        rtm, state, callback = self._crtm()
+
+        dict = self._cem("GET", "http://www.example.org/users")
+        dict = self._cem("GET", "http://www.example.org/users?userId=300", dict)
+        rtm.requests = dict["GET|http://www.example.org/users"].requests
+
+        rtm.selectRow(0)
+
+        self.assertEquals(state.requestViewer.setMessage.call_count, 1)
+        self.assertEquals(state.responseViewer.setMessage.call_count, 1)
+        self.assertEquals(state.currentlyDisplayedItem, rtm.requests[0].httpRequestResponse)
 
 if __name__ == '__main__':
     unittest.main()

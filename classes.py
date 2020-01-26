@@ -327,7 +327,12 @@ class RequestTableModel(AbstractTableModel):
 
         request = self.requests[rowIndex]
         if columnIndex == 0:
-            return request.analyzedRequest.url.path
+            url = request.analyzedRequest.url
+            queryString = url.query
+            if queryString:
+                return url.path + "?" + queryString
+            else:
+                return url.path
         elif columnIndex == 1:
             if request.analyzedResponse:
                 return request.analyzedResponse.statusCode
@@ -368,6 +373,21 @@ class RequestTableModel(AbstractTableModel):
 
         self._lock.release()
 
+    def selectRow(self, rowIndex):
+        """
+        Gets called when a hacker clicks on a request in the rightmost panel.
+
+        Args:
+            rowIndex: the row number that was clicked.
+        """
+        request = self.requests[rowIndex]
+
+        self.state.requestViewer.setMessage(request.httpRequestResponse.request, False)
+        self.state.responseViewer.setMessage(request.httpRequestResponse.response, False)
+        self.state.currentlyDisplayedItem = request.httpRequestResponse
+
+
+
 class Tab(ITab):
     def __init__(self, splitpane):
         self.splitpane = splitpane
@@ -404,13 +424,13 @@ class MessageEditorController(IMessageEditorController):
         self.state = state
 
     def getHttpService(self):
-        return self.state._currentlyDisplayedItem.getHttpService()
+        return self.state.currentlyDisplayedItem.getHttpService()
 
     def getRequest(self):
-        return self.state._currentlyDisplayedItem.getRequest()
+        return self.state.currentlyDisplayedItem.getRequest()
 
     def getResponse(self):
-        return self.state._currentlyDisplayedItem.getResponse()
+        return self.state.currentlyDisplayedItem.getResponse()
 
 class ToolboxUI():
 
@@ -592,10 +612,10 @@ class ToolboxUI():
         """
         tabs = JTabbedPane()
         messageEditor = MessageEditorController(state)
-        state._requestViewer = callbacks.createMessageEditor(messageEditor, False)
-        state._responseViewer = callbacks.createMessageEditor(messageEditor, False)
-        tabs.addTab("Request", state._requestViewer.getComponent())
-        tabs.addTab("Response", state._responseViewer.getComponent())
+        state.requestViewer = callbacks.createMessageEditor(messageEditor, False)
+        state.responseViewer = callbacks.createMessageEditor(messageEditor, False)
+        tabs.addTab("Request", state.requestViewer.getComponent())
+        tabs.addTab("Response", state.responseViewer.getComponent())
 
         return tabs
 
