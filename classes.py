@@ -56,7 +56,7 @@ class ReplacementRulesTableModel(AbstractTableModel):
     cols = ["Rule type", "Detail"]
 
     def __init__(self, state):
-        self._lock = Lock()
+        self.lock = Lock()
         self.state = state
         self.active_rules = {}
 
@@ -111,7 +111,7 @@ class EndpointTableModel(AbstractTableModel):
             state: the global state object.
             callbacks: the burp callbacks object.
         """
-        self._lock = Lock()
+        self.lock = Lock()
         self.state = state
         self.callbacks = callbacks
         self.endpoints = OrderedDict()
@@ -120,29 +120,31 @@ class EndpointTableModel(AbstractTableModel):
         """
         Adds a http request to the internal state and fires the trigger for a reload of the table.
 
-        This is called both by a click on the "refresh" button, which fetches requests from previous requests and by processHttpMessage which fetches requests as they occur.
+        This is called by a click on the "refresh" button, which fetches requests from previous requests. We ignore requests without responses and OPTIONS requests as these don't tend to have IDOR.
 
         Args:
         httpRequestResponse: an HttpRequestResponse java object as returned by burp.
         """
 
-        if not httpRequestResponse.response:
-            return
+        with self.lock:
 
-        self._lock.acquire()
+            analyzedRequest = self.callbacks.helpers.analyzeRequest(httpRequestResponse)
 
-        analyzedRequest = self.callbacks.helpers.analyzeRequest(httpRequestResponse)
+            hash, url, method = self.generateEndpointHash(analyzedRequest)
 
-        hash, url, method = self.generateEndpointHash(analyzedRequest)
-        if hash not in self.endpoints:
-            self.endpoints[hash] = EndpointModel(method, url)
+            if not httpRequestResponse.response:
+                return
 
-        self.endpoints[hash].add(RequestModel(httpRequestResponse, self.callbacks))
+            if method == "OPTIONS":
+                return
 
-        added_at_index = len(self.endpoints)
-        self.fireTableRowsInserted(added_at_index, added_at_index)
+            if hash not in self.endpoints:
+                self.endpoints[hash] = EndpointModel(method, url)
 
-        self._lock.release()
+            self.endpoints[hash].add(RequestModel(httpRequestResponse, self.callbacks))
+
+            added_at_index = len(self.endpoints)
+            self.fireTableRowsInserted(added_at_index, added_at_index)
 
     def generateEndpointHash(self, analyzedRequest):
         """
@@ -293,7 +295,7 @@ class RequestTableModel(AbstractTableModel):
             callbacks: burp callbacks
         """
         self.requests = []
-        self._lock = Lock()
+        self.lock = Lock()
         self.state = state
         self.callbacks = callbacks
 
@@ -370,13 +372,10 @@ class RequestTableModel(AbstractTableModel):
         Args:
             requests: an array of requests to replace the current requests with.
         """
-        self._lock.acquire()
-
-        nb_requests = len(requests)
-        self.requests = requests
-        self.fireTableRowsInserted(0, nb_requests - 1)
-
-        self._lock.release()
+        with self.lock:
+            nb_requests = len(requests)
+            self.requests = requests
+            self.fireTableRowsInserted(0, nb_requests - 1)
 
     def selectRow(self, rowIndex):
         """
@@ -599,6 +598,8 @@ class ToolboxUI():
         endpointTable = Table(state.endpointTableModel)
         endpointTable.getColumnModel().getColumn(0).setPreferredWidth(30)
         endpointTable.getColumnModel().getColumn(1).setPreferredWidth(400)
+        # endpointTable.setAutoCreateRowSorter(True)
+
         endpointView = JScrollPane(endpointTable)
         callbacks.customizeUiComponent(endpointTable)
         callbacks.customizeUiComponent(endpointView)
