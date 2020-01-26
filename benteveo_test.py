@@ -18,14 +18,13 @@ class GenericMock(object):
 
     def __init__(self):
         self.mocked = {}
-        
+
     def __getattr__(self, name):
         try:
             return object.__getattribute__(self, name)
         except AttributeError:
             pass
 
-        print self.mocked
         try:
             return self.mocked[name]
         except KeyError:
@@ -67,8 +66,9 @@ class TestToolbox(unittest.TestCase):
         httpRequestResponse.response.length = 1337
 
         callbacks = GenericMock()
-        # analyzedRequest.method = method
-        # analyzedRequest.url = URL(url)
+        callbacks.helpers.analyzeRequest.return_value.method = method
+        callbacks.helpers.analyzeRequest.return_value.url = URL(url)
+        callbacks.helpers.analyzeResponse.return_value.statusCode = 200
 
         request = RequestModel(httpRequestResponse, callbacks)
 
@@ -208,7 +208,6 @@ class TestToolbox(unittest.TestCase):
 
     def testRequestsTableModelGetValueAt(self):
         rtm, state, callback = self._crtm()
-        print callback.analyzeRequest.return_value.url
 
         dict = self._cem("GET", "http://www.example.org/users")
         dict = self._cem("GET", "http://www.example.org/users?userId=300", dict)

@@ -251,7 +251,7 @@ class RequestModel(object):
         if self._analyzedResponse:
             return self._analyzedResponse
         else:
-            self._analyzedResponse = self.callbacks.analyzeResponse(self.httpRequestResponse.response)
+            self._analyzedResponse = self.callbacks.helpers.analyzeResponse(self.httpRequestResponse.response)
             return self._analyzedResponse
 
     @property
@@ -259,7 +259,7 @@ class RequestModel(object):
         if self._analyzedRequest:
             return self._analyzedRequest
         else:
-            self._analyzedRequest = self.callbacks.analyzeRequest(self.httpRequestResponse.request)
+            self._analyzedRequest = self.callbacks.helpers.analyzeRequest(self.httpRequestResponse.request)
             return self._analyzedRequest
 
 class RequestTableModel(AbstractTableModel):
