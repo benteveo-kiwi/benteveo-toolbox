@@ -125,6 +125,10 @@ class EndpointTableModel(AbstractTableModel):
         Args:
         httpRequestResponse: an HttpRequestResponse java object as returned by burp.
         """
+
+        if not httpRequestResponse.response:
+            return
+
         self._lock.acquire()
 
         analyzedRequest = self.callbacks.helpers.analyzeRequest(httpRequestResponse)
@@ -200,6 +204,7 @@ class EndpointTableModel(AbstractTableModel):
         """
         endpoint = self.getEndpoint(rowIndex)
         self.state.requestTableModel.updateRequests(endpoint.requests)
+        self.state.requestTableModel.selectRow(0)
 
     def getValueAt(self, rowIndex, columnIndex):
         """
@@ -592,6 +597,8 @@ class ToolboxUI():
         splitpane.setDividerLocation(1000)
 
         endpointTable = Table(state.endpointTableModel)
+        endpointTable.getColumnModel().getColumn(0).setPreferredWidth(30)
+        endpointTable.getColumnModel().getColumn(1).setPreferredWidth(400)
         endpointView = JScrollPane(endpointTable)
         callbacks.customizeUiComponent(endpointTable)
         callbacks.customizeUiComponent(endpointView)
