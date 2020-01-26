@@ -1,12 +1,12 @@
 from burp import IBurpExtender
-from classes import Table, Tab, HttpListener, MessageEditorController, \
-    ToolboxUI, EndpointTableModel, RequestTableModel, ReplacementRulesTableModel
+from implementations import Tab, HttpListener, MessageEditorController
+from tables import Table
+from ui import ToolboxUI
+from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableModel
 
 class State(object):
     """
-    An object that keeps the state of the application. Because Burp's
-    architecture is event driven, I use this object for communication between
-    the different objects that get called on different callbacks.
+    An object that keeps the state of the application. Because Burp's architecture is event driven, I use this object for communication between the different objects that get called on different callbacks.
     """
     pass
 
@@ -25,7 +25,7 @@ class BurpExtender(IBurpExtender):
 
         state.endpointTableModel = EndpointTableModel(state, callbacks)
         state.requestTableModel = RequestTableModel(state, callbacks)
-        state.replacementRulesTableModel = ReplacementRulesTableModel(state)
+        state.replacementRulesTableModel = ReplacementRuleTableModel()
 
         ui = ToolboxUI()
         splitpane = ui.buildUi(state, callbacks)

@@ -4,7 +4,9 @@ import operator
 from collections import OrderedDict
 from java.awt import Component
 from benteveo_toolbox import BurpExtender
-from classes import EndpointTableModel, ToolboxCallbacks, EndpointModel, RequestModel, RequestTableModel
+from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableModel
+from models import EndpointModel, RequestModel
+from ui import ToolboxCallbacks
 from java.net import URL
 
 class GenericMock(object):
@@ -133,6 +135,13 @@ class TestToolbox(unittest.TestCase):
         cb = ToolboxCallbacks(state, burpCallbacks)
 
         return cb, state, burpCallbacks
+
+    def _crrtm(self):
+        """
+        Create ReplacementRuleTableModel convenience method.
+        """
+
+        return ReplacementRuleTableModel()
 
     def testCanRunMainWithoutCrashing(self):
         be = BurpExtender()
@@ -302,6 +311,22 @@ class TestToolbox(unittest.TestCase):
         self.assertEquals(state.requestViewer.setMessage.call_count, 1)
         self.assertEquals(state.responseViewer.setMessage.call_count, 1)
         self.assertEquals(state.currentlyDisplayedItem, rtm.requests[0].httpRequestResponse)
+
+    def testReplacementRules(self):
+        rrtm = self._crrtm()
+        rrtm.add("type", "search", "replace")
+        rrtm.add("type2", "search2", "replace2")
+
+        self.assertEquals(len(rrtm.rules), 2)
+        self.assertEquals(rrtm.getValueAt(0, 0), 1)
+        self.assertEquals(rrtm.getValueAt(0, 1), "type")
+        self.assertEquals(rrtm.getValueAt(0, 2), 1)
+        self.assertEquals(rrtm.getValueAt(1, 0), 1)
+        self.assertEquals(rrtm.getValueAt(1, 1), 1)
+        self.assertEquals(rrtm.getValueAt(1, 2), 1)
+        self.assertEquals(rrtm.rules[1].type, "type2")
+        self.assertEquals(rrtm.rules[0].id, 1)
+        self.assertEquals(rrtm.rules[1].id, 2)
 
 if __name__ == '__main__':
     unittest.main()
