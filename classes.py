@@ -108,6 +108,10 @@ class RequestModel(object):
         """
         self.httpRequestResponse = httpRequestResponse
         self.analyzedRequest = analyzedRequest
+
+        self.repeatedHttpRequestResponse = None
+        self.repeatedAnalyzedRequest = None
+
         self.repeated = False
 
 class EndpointTableModel(AbstractTableModel):
@@ -250,7 +254,7 @@ class RequestTableModel(AbstractTableModel):
         Returns the number of elements in this table.
         """
         try:
-            return self.requests.size()
+            return len(self.requests)
         except:
             return 0
 
@@ -278,6 +282,26 @@ class RequestTableModel(AbstractTableModel):
             columnIndex: x value to return the value for.
         """
         request = self.requests[rowIndex]
+        if columnIndex == 0:
+            return request.analyzedRequest.url.getPath()
+        elif columnIndex == 1:
+            return request.analyzedRequest.status
+        elif columnIndex == 2:
+            if request.repeatedAnalyzedRequest != None:
+                return request.repeatedAnalyzedRequest.status
+            else:
+                return ""
+        elif columnIndex == 3:
+            return request.httpRequestResponse.response.length
+        elif columnIndex == 4:
+            if request.repeatedAnalyzedRequest != None:
+                return request.repeaterhttpRequestResponse.response.length
+            else:
+                return ""
+        elif columnIndex == 5:
+            return ""
+
+
 
     def updateRequests(self, requests):
         """

@@ -61,16 +61,20 @@ class TestToolbox(unittest.TestCase):
         if not dict:
             dict = OrderedDict()
 
+        httpRequestResponse = GenericMock()
+        httpRequestResponse.response.length = 1337
+
         analyzedRequest = GenericMock()
         analyzedRequest.method = method
-        analyzedRequest.url = url
-        request = RequestModel(GenericMock(), analyzedRequest)
+        analyzedRequest.url = URL(url)
+        analyzedRequest.status = '200'
 
-        hash = method + "|" + url
+        request = RequestModel(httpRequestResponse, analyzedRequest)
+
+        hash = method + "|" + url.split("?")[0]
 
         if not hash in dict:
             dict[hash] = EndpointModel(method, url)
-
         dict[hash].add(request)
 
         return dict
@@ -110,6 +114,7 @@ class TestToolbox(unittest.TestCase):
         mockRequestInfo = GenericMock()
         mockRequestInfo.method = "GET"
         mockRequestInfo.url = URL("http://www.example.org/users")
+        mockRequestInfo.status = "200"
 
         hash, _, _ = etm.generateEndpointHash(mockRequestInfo)
 
@@ -206,13 +211,18 @@ class TestToolbox(unittest.TestCase):
         rtm, state, callback = self._crtm()
 
         dict = self._cem("GET", "http://www.example.org/users")
-        dict = self._cem("GET", "http://www.example.org/users", dict)
+        dict = self._cem("GET", "http://www.example.org/users?userId=300", dict)
 
         rtm.requests = dict["GET|http://www.example.org/users"].requests
 
-        print rtm.getValueAt(0, 0)
+        self.assertEquals(rtm.getValueAt(0, 0), "/users")
+        self.assertEquals(rtm.getValueAt(0, 1), "200")
+        self.assertEquals(rtm.getValueAt(0, 2), "")
+        self.assertEquals(rtm.getValueAt(0, 3), 1337)
+        self.assertEquals(rtm.getValueAt(0, 4), "")
+        self.assertEquals(rtm.getValueAt(0, 4), "")
 
-
+        self.assertTrue(rtm.getValueAt(1, 0), "/users?userId=300")
 
 if __name__ == '__main__':
     unittest.main()
