@@ -15,15 +15,17 @@ class GenericMock(object):
     """
 
     call_count = 0
-    mocked = {}
 
+    def __init__(self):
+        self.mocked = {}
+        
     def __getattr__(self, name):
-
         try:
             return object.__getattribute__(self, name)
         except AttributeError:
             pass
 
+        print self.mocked
         try:
             return self.mocked[name]
         except KeyError:
@@ -64,12 +66,11 @@ class TestToolbox(unittest.TestCase):
         httpRequestResponse = GenericMock()
         httpRequestResponse.response.length = 1337
 
-        analyzedRequest = GenericMock()
-        analyzedRequest.method = method
-        analyzedRequest.url = URL(url)
-        analyzedRequest.status = '200'
+        callbacks = GenericMock()
+        # analyzedRequest.method = method
+        # analyzedRequest.url = URL(url)
 
-        request = RequestModel(httpRequestResponse, analyzedRequest)
+        request = RequestModel(httpRequestResponse, callbacks)
 
         hash = method + "|" + url.split("?")[0]
 
@@ -151,9 +152,7 @@ class TestToolbox(unittest.TestCase):
         self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].method, "GET")
 
     def testAddEndpointTableModelWithQueryString(self):
-        state = GenericMock()
-        callbacks = GenericMock()
-        etm = EndpointTableModel(state, callbacks)
+        etm, state, callbacks = self._cetm()
 
         ret = callbacks.helpers.analyzeRequest.return_value
         ret.method = "GET"
@@ -190,8 +189,8 @@ class TestToolbox(unittest.TestCase):
 
         etm.selectRow(0)
 
-        self.assertEquals(state.requestsTableModel.updateRequests.call_count, 1)
-        self.assertEquals(len(state.requestsTableModel.updateRequests.call_args[0]), 2)
+        self.assertEquals(state.requestTableModel.updateRequests.call_count, 1)
+        self.assertEquals(len(state.requestTableModel.updateRequests.call_args[0]), 2)
 
     def testRequestsTableModelUpdateMethod(self):
         rtm, state, callback = self._crtm()
@@ -209,6 +208,7 @@ class TestToolbox(unittest.TestCase):
 
     def testRequestsTableModelGetValueAt(self):
         rtm, state, callback = self._crtm()
+        print callback.analyzeRequest.return_value.url
 
         dict = self._cem("GET", "http://www.example.org/users")
         dict = self._cem("GET", "http://www.example.org/users?userId=300", dict)
@@ -216,7 +216,7 @@ class TestToolbox(unittest.TestCase):
         rtm.requests = dict["GET|http://www.example.org/users"].requests
 
         self.assertEquals(rtm.getValueAt(0, 0), "/users")
-        self.assertEquals(rtm.getValueAt(0, 1), "200")
+        self.assertEquals(rtm.getValueAt(0, 1), 200)
         self.assertEquals(rtm.getValueAt(0, 2), "")
         self.assertEquals(rtm.getValueAt(0, 3), 1337)
         self.assertEquals(rtm.getValueAt(0, 4), "")

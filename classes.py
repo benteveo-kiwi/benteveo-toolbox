@@ -94,31 +94,23 @@ class EndpointModel(object):
         self.nb += 1
         self.requests.append(requestModel)
 
-class RequestModel(object):
-    """
-    Model that represents requests on the right panel on the results page.
-    """
-    def __init__(self, httpRequestResponse, analyzedRequest):
-        """
-        Main constructor.
-
-        Args:
-            httpRequestResponse: a httpRequestResponse as returned by burp apis.
-            analyzedRequest: an object as returned by analyzeRequest(httpRequestResponse).
-        """
-        self.httpRequestResponse = httpRequestResponse
-        self.analyzedRequest = analyzedRequest
-
-        self.repeatedHttpRequestResponse = None
-        self.repeatedAnalyzedRequest = None
-
-        self.repeated = False
-
 class EndpointTableModel(AbstractTableModel):
+    """
+    Handles interactions between raw data and the Swing table.
+
+    Also keeps in the endpoints attribute a list of all known endpoints.
+    """
 
     cols = ["Method", "URL", "#", "Same Status", "Same Len"]
 
     def __init__(self, state, callbacks):
+        """
+        Main constructor.
+
+        Args:
+            state: the global state object.
+            callbacks: the burp callbacks object.
+        """
         self._lock = Lock()
         self.state = state
         self.callbacks = callbacks
@@ -207,7 +199,7 @@ class EndpointTableModel(AbstractTableModel):
             rowIndex: the row that was clicked.
         """
         endpoint = self.getEndpoint(rowIndex)
-        self.state.requestsTableModel.updateRequests(endpoint.requests)
+        self.state.requestTableModel.updateRequests(endpoint.requests)
 
     def getValueAt(self, rowIndex, columnIndex):
         """
@@ -228,6 +220,47 @@ class EndpointTableModel(AbstractTableModel):
             return endpointModel.nb_same_status
         elif columnIndex == 4:
             return endpointModel.nb_same_len
+
+class RequestModel(object):
+    """
+    Model that represents requests on the right panel on the results page.
+    """
+    def __init__(self, httpRequestResponse, callbacks):
+        """
+        Main constructor.
+
+        See https://portswigger.net/burp/extender/api/burp/IExtensionHelpers.html#analyzeRequest(burp.IHttpRequestResponse) for more info. Analysis of the response is performed as-needed because it is very slow and hangs burp.
+
+        Args:
+        httpRequestResponse: a httpRequestResponse as returned by burp apis.
+        callbacks: burp callbacks object.
+        """
+        self.httpRequestResponse = httpRequestResponse
+        self.callbacks = callbacks
+
+        self._analyzedRequest = None
+        self._analyzedResponse = None
+
+        self.repeatedHttpRequestResponse = None
+        self.repeatedAnalyzedRequest = None
+
+        self.repeated = False
+
+    @property
+    def analyzedResponse(self):
+        if self._analyzedResponse:
+            return self._analyzedResponse
+        else:
+            self._analyzedResponse = self.callbacks.analyzeResponse(self.httpRequestResponse.response)
+            return self._analyzedResponse
+
+    @property
+    def analyzedRequest(self):
+        if self._analyzedRequest:
+            return self._analyzedRequest
+        else:
+            self._analyzedRequest = self.callbacks.analyzeRequest(self.httpRequestResponse.request)
+            return self._analyzedRequest
 
 class RequestTableModel(AbstractTableModel):
     """
@@ -283,9 +316,9 @@ class RequestTableModel(AbstractTableModel):
         """
         request = self.requests[rowIndex]
         if columnIndex == 0:
-            return request.analyzedRequest.url.getPath()
+            return request.analyzedRequest.url.path
         elif columnIndex == 1:
-            return request.analyzedRequest.status
+            return request.analyzedResponse.statusCode
         elif columnIndex == 2:
             if request.repeatedAnalyzedRequest != None:
                 return request.repeatedAnalyzedRequest.status
@@ -300,8 +333,6 @@ class RequestTableModel(AbstractTableModel):
                 return ""
         elif columnIndex == 5:
             return ""
-
-
 
     def updateRequests(self, requests):
         """
