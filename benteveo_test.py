@@ -5,9 +5,10 @@ from collections import OrderedDict
 from java.awt import Component
 from benteveo_toolbox import BurpExtender
 from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableModel
-from models import EndpointModel, RequestModel
+from models import EndpointModel, RequestModel, ReplacementRuleModel
 from ui import ToolboxCallbacks
 from java.net import URL
+import ui
 
 class GenericMock(object):
     """
@@ -73,6 +74,32 @@ class GenericMock(object):
         return 1337
 
 class TestToolbox(unittest.TestCase):
+    """
+    Main testing class. Contains tests for all classes within the codebase.
+    """
+
+    def mockSwingClasses(self):
+        """
+        Mocks JOptionPane so that a pop-up window does not appear during test runs.
+        """
+        self._JOptionPane = ui.JOptionPane
+        self._JTextField = ui.JTextField
+        self._Box = ui.Box
+
+        ui.JOptionPane = GenericMock()
+        ui.JOptionPane.showConfirmDialog.return_value = self._JOptionPane.OK_OPTION
+        ui.JOptionPane.OK_OPTION = self._JOptionPane.OK_OPTION
+
+        ui.JTextField = GenericMock()
+        ui.Box = GenericMock()
+
+    def mockSwingClassesClean(self):
+        """
+        Restore JOptionPane to it's oriiginal glory to prevent shenanigans.
+        """
+        ui.JOptionPane = self._JOptionPane
+        ui.JTextField = self._JTextField
+        ui.Box = self._Box
 
     def _cem(self, method, url, dict=None):
         """
@@ -140,7 +167,6 @@ class TestToolbox(unittest.TestCase):
         """
         Create ReplacementRuleTableModel convenience method.
         """
-
         return ReplacementRuleTableModel()
 
     def testCanRunMainWithoutCrashing(self):
@@ -335,6 +361,51 @@ class TestToolbox(unittest.TestCase):
 
         rrtm.delete(2)
         self.assertEquals(rrtm.getRowCount(), 1)
+
+    def testAddButton(self):
+        self.mockSwingClasses()
+        try:
+            cb, state, burpCallbacks = self._ctc()
+
+            state.replacementRuleTableModel.rules = [ReplacementRuleModel(1, "type", "search", "replacement")]
+
+            ui.JTextField.return_value.text = ""
+            cb.addButtonClicked(GenericMock())
+            self.assertEquals(state.replacementRuleTableModel.add.call_count, 0, "Should be 0 because input is empty.")
+
+            ui.JTextField.return_value.text = "valid"
+            cb.addButtonClicked(GenericMock())
+
+            self.assertEquals(state.replacementRuleTableModel.add.call_count, 1, "Should have saved user input.")
+            self.assertEquals(burpCallbacks.saveExtensionSetting.call_count, 1)
+        finally:
+            self.mockSwingClassesClean()
+
+    def testReplacementRulesJson(self):
+        rrtm = self._crrtm()
+        rrtm.add("type", "search", "replace")
+        rrtm.add("type2", "search2", "replace2")
+
+        self.assertEquals(rrtm.exportJsonRules(), '[{"type": "type", "search": "search", "id": 1, "replacement": "replace"}, {"type": "type2", "search": "search2", "id": 2, "replacement": "replace2"}]')
+
+    def testReplacementRulesJsonImport(self):
+        rrtm = self._crrtm()
+
+        json ='[{"type": "type", "search": "search", "id": 1, "replacement": "replace"}, {"type": "type2", "search": "search2", "id": 2, "replacement": "replace2"}]'
+
+        rrtm.fireTableDataChanged = GenericMock()
+        rrtm.importJsonRules(json)
+
+        self.assertEquals(rrtm.getRowCount(), 2)
+        self.assertEquals(rrtm.getValueAt(0, 0), 1)
+        self.assertEquals(rrtm.getValueAt(0, 1), "type")
+        self.assertEquals(rrtm.getValueAt(0, 2), "search")
+        self.assertEquals(rrtm.getValueAt(0, 3), "replace")
+        self.assertEquals(rrtm.getValueAt(1, 0), 2)
+        self.assertEquals(rrtm.getValueAt(1, 1), "type2")
+        self.assertEquals(rrtm.getValueAt(1, 2), "search2")
+        self.assertEquals(rrtm.getValueAt(1, 3), "replace2")
+        self.assertEquals(rrtm.fireTableDataChanged.call_count, 1)
 
 if __name__ == '__main__':
     unittest.main()

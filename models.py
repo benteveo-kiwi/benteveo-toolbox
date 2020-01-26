@@ -61,7 +61,7 @@ class RequestModel(object):
             else:
                 return None
 
-class ReplacementRuleModel(object):
+class ReplacementRuleModel():
     def __init__(self, id, type, search, replacement):
         self.id = id
         self.type = type

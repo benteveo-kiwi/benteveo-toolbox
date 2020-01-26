@@ -128,6 +128,13 @@ class ToolboxUI():
         rules.add(delete)
         rules.add(tableView)
 
+        try:
+            storedReplacementRules = callbacks.loadExtensionSetting("replacementRules")
+            state.replacementRuleTableModel.importJsonRules(storedReplacementRules)
+        except (ValueError, KeyError):
+            print "Invalid replacement rules stored. Ignoring."
+            pass
+
         return rules
 
     def buildSessionCheck(self, state, callbacks):
@@ -222,6 +229,8 @@ class ToolboxUI():
 
         return tabs
 
+class InvalidInputException(Exception):
+    pass
 
 class ToolboxCallbacks(object):
     """
@@ -294,22 +303,43 @@ class ToolboxCallbacks(object):
         if result == JOptionPane.OK_OPTION:
             if search.text == "":
                 JOptionPane.showMessageDialog(None, "Invalid header name / search string")
-                return
+                raise InvalidInputException()
             else:
                 return type.selectedItem, search.text, replacement.text
+        else:
+            raise InvalidInputException()
 
     def addButtonClicked(self, event):
         """
         Handles click of the replacement rule add button.
         """
-        type, search, replacement = self.buildAddEditPrompt()
+        try:
+            type, search, replacement = self.buildAddEditPrompt()
+        except InvalidInputException:
+            return
+
         self.state.replacementRuleTableModel.add(type, search, replacement)
+        self.burpCallbacks.saveExtensionSetting("replacementRules", self.state.replacementRuleTableModel.exportJsonRules())
 
     def editButtonClicked(self, event):
+        """
+        Handles click of the edit button.
+        """
         rule = self.state.replacementRuleTableModel.selected
-        type, search, replacement = self.buildAddEditPrompt(rule.type, rule.search, rule.replacement)
+
+        try:
+            type, search, replacement = self.buildAddEditPrompt(rule.type, rule.search, rule.replacement)
+        except InvalidInputException:
+            return
+
         self.state.replacementRuleTableModel.edit(rule.id, type, search, replacement)
+        self.burpCallbacks.saveExtensionSetting("replacementRules", self.state.replacementRuleTableModel.exportJsonRules())
 
     def deleteButtonClicked(self, event):
+        """
+        Handles click of the delete button.
+        """
         rule = self.state.replacementRuleTableModel.selected
         self.state.replacementRuleTableModel.delete(rule.id)
+
+        self.burpCallbacks.saveExtensionSetting("replacementRules", self.state.replacementRuleTableModel.exportJsonRules())

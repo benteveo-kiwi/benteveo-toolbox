@@ -4,6 +4,7 @@ from java.lang import Class
 from collections import OrderedDict
 from models import EndpointModel, RequestModel, ReplacementRuleModel
 from threading import Lock
+import json
 import re
 
 class Table(JTable):
@@ -428,3 +429,29 @@ class ReplacementRuleTableModel(AbstractTableModel):
         Gets called when a user selects a row. This is useful for "Edit" or "Delete" operations.
         """
         self.selected = self.rules[rowIndex]
+
+    def exportJsonRules(self):
+        """
+        Returns current rules as JSON to persist as a burp setting.
+        """
+        simple = []
+        for element in self.rules:
+            simple.append(dict(element.__dict__))
+
+        return json.dumps(simple)
+
+    def importJsonRules(self, jsonRules):
+        """
+        Overwrites the current rules with the json string.
+
+        Args:
+            jsonRules: a json string as exported by self.exportJsonRules().
+        """
+        jsonObject = json.loads(jsonRules)
+        rules = []
+        for element in jsonObject:
+            rules.append(ReplacementRuleModel(element['id'], element['type'], element['search'], element['replacement']))
+
+        with self.lock:
+            self.rules = rules
+            self.fireTableDataChanged()
