@@ -124,6 +124,16 @@ class TestToolbox(unittest.TestCase):
 
         return rtm, state, callbacks
 
+    def _ctc(self):
+        """
+        Create ToolBoxCallbacks convenience method.
+        """
+        state = GenericMock()
+        burpCallbacks = GenericMock()
+        cb = ToolboxCallbacks(state, burpCallbacks)
+
+        return cb, state, burpCallbacks
+
     def testCanRunMainWithoutCrashing(self):
         be = BurpExtender()
         mock = GenericMock()
@@ -157,9 +167,7 @@ class TestToolbox(unittest.TestCase):
         self.assertEquals(hash, "GET|http://www.example.org/users/{ID}")
 
     def testRefreshPersistsSettings(self):
-        state = GenericMock()
-        burpCallbacks = GenericMock()
-        cb = ToolboxCallbacks(state, burpCallbacks)
+        cb, state, burpCallbacks = self._ctc()
 
         state.scopeTextArea.getText.return_value = "https://example.com/\nhttps://example.org/\n"
         burpCallbacks.getSiteMap.return_value = [GenericMock(),GenericMock(),GenericMock()]
@@ -169,6 +177,7 @@ class TestToolbox(unittest.TestCase):
         self.assertEquals(state.scopeTextArea.getText.call_count, 1)
         self.assertEquals(burpCallbacks.saveExtensionSetting.call_count, 1)
         self.assertEquals(burpCallbacks.getSiteMap.call_count, 2)
+        self.assertEquals(state.endpointTableModel.clear.call_count, 1)
         self.assertEquals(state.endpointTableModel.add.call_count, 6)
 
     def testAddEndpointTableModelSimple(self):
@@ -198,6 +207,30 @@ class TestToolbox(unittest.TestCase):
         self.assertEqual(len(etm.endpoints), 1)
         self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].url, "http://www.example.org/users")
         self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].method, "GET")
+
+    def testClearEndpointTableModel(self):
+        etm, state, callbacks = self._cetm()
+
+        etm.fireTableRowsDeleted = GenericMock()
+
+        ret = callbacks.helpers.analyzeRequest.return_value
+        ret.method = "GET"
+        ret.url = URL("http://www.example.org/users?count=50")
+
+        etm.add(GenericMock())
+        etm.clear()
+
+        self.assertEqual(len(etm.endpoints), 0)
+        self.assertEqual(etm.fireTableRowsDeleted.call_count, 1)
+
+    def testClearWhenEmpty(self):
+        etm, state, callbacks = self._cetm()
+
+        etm.fireTableRowsDeleted = GenericMock()
+
+        etm.clear()
+
+        self.assertEqual(etm.fireTableRowsDeleted.call_count, 0)
 
     def testEndpointTableModelGetValueAt(self):
         etm, state, callbacks = self._cetm()

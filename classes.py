@@ -120,36 +120,6 @@ class EndpointTableModel(AbstractTableModel):
         self.callbacks = callbacks
         self.endpoints = OrderedDict()
 
-    def add(self, httpRequestResponse):
-        """
-        Adds a http request to the internal state and fires the trigger for a reload of the table.
-
-        This is called by a click on the "refresh" button, which fetches requests from previous requests. We ignore requests without responses and OPTIONS requests as these don't tend to have IDOR.
-
-        Args:
-        httpRequestResponse: an HttpRequestResponse java object as returned by burp.
-        """
-
-        with self.lock:
-
-            analyzedRequest = self.callbacks.helpers.analyzeRequest(httpRequestResponse)
-
-            hash, url, method = self.generateEndpointHash(analyzedRequest)
-
-            if not httpRequestResponse.response:
-                return
-
-            if method == "OPTIONS":
-                return
-
-            if hash not in self.endpoints:
-                self.endpoints[hash] = EndpointModel(method, url)
-
-            self.endpoints[hash].add(RequestModel(httpRequestResponse, self.callbacks))
-
-            added_at_index = len(self.endpoints)
-            self.fireTableRowsInserted(added_at_index - 1, added_at_index - 1)
-
     def generateEndpointHash(self, analyzedRequest):
         """
         In this endpoint, a hash is a string that is used to group requests.
@@ -222,6 +192,51 @@ class EndpointTableModel(AbstractTableModel):
             rowIndex: specific row to fetch the EndpointModel for.
         """
         return self.endpoints.items()[rowIndex][1]
+
+    def add(self, httpRequestResponse):
+        """
+        Adds a http request to the internal state and fires the trigger for a reload of the table.
+
+        This is called by a click on the "refresh" button, which fetches requests from previous requests. We ignore requests without responses and OPTIONS requests as these don't tend to have IDOR.
+
+        Args:
+        httpRequestResponse: an HttpRequestResponse java object as returned by burp.
+        """
+
+        with self.lock:
+
+            analyzedRequest = self.callbacks.helpers.analyzeRequest(httpRequestResponse)
+
+            hash, url, method = self.generateEndpointHash(analyzedRequest)
+
+            if not httpRequestResponse.response:
+                return
+
+            if method == "OPTIONS":
+                return
+
+            if hash not in self.endpoints:
+                self.endpoints[hash] = EndpointModel(method, url)
+
+            self.endpoints[hash].add(RequestModel(httpRequestResponse, self.callbacks))
+
+            added_at_index = len(self.endpoints)
+            self.fireTableRowsInserted(added_at_index - 1, added_at_index - 1)
+
+    def clear(self):
+        """
+        Gets called when the user clicks the Refresh button in order to clear the state.
+
+        Deletes all currently stored endpoints.
+        """
+
+        with self.lock:
+            length = len(self.endpoints)
+            if length == 0:
+                return
+                
+            self.endpoints = OrderedDict()
+            self.fireTableRowsDeleted(0, length - 1)
 
     def selectRow(self, rowIndex):
         """
@@ -549,7 +564,10 @@ class ToolboxUI():
         rules.setMaximumSize(Dimension(self.CONFIG_PAGE_WIDTH, 300))
 
         title = self.getTitle("Replacement Rules", 20, 10)
+
         add = self.getButton("Add", 20, 50)
+        add.addActionListener(self.callbacks.addButtonClicked)
+
         edit = self.getButton("Edit", 20, 90)
         delete = self.getButton("Delete", 20, 130)
 
@@ -669,6 +687,9 @@ class ToolboxCallbacks(object):
         """
         Handles click of refresh button. This reloads the results page with the new scope.
         """
+
+        self.state.endpointTableModel.clear()
+
         scopes = self.state.scopeTextArea.getText()
         self.burpCallbacks.saveExtensionSetting("scopes", scopes)
 
@@ -681,3 +702,6 @@ class ToolboxCallbacks(object):
             requests = self.burpCallbacks.getSiteMap(url)
             for request in requests:
                 self.state.endpointTableModel.add(request)
+
+    def addButtonClicked(self, event):
+        print "Add! :D"
