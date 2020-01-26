@@ -325,11 +325,8 @@ class RequestTableModel(AbstractTableModel):
             columnIndex: x value to return the value for.
         """
 
-        print rowIndex, columnIndex
-
         request = self.requests[rowIndex]
         if columnIndex == 0:
-            print request.analyzedRequest.url.path
             return request.analyzedRequest.url.path
         elif columnIndex == 1:
             if request.analyzedResponse:
@@ -337,7 +334,6 @@ class RequestTableModel(AbstractTableModel):
             else:
                 return ""
         elif columnIndex == 2:
-            print "c"
             if request.repeatedAnalyzedRequest:
                 return request.repeatedAnalyzedRequest.status
             else:
@@ -348,13 +344,11 @@ class RequestTableModel(AbstractTableModel):
             else:
                 return ""
         elif columnIndex == 4:
-            print "e"
             if request.repeatedAnalyzedRequest:
                 return len(request.repeaterhttpRequestResponse.response)
             else:
                 return ""
         elif columnIndex == 5:
-            print "f"
             return ""
 
     def updateRequests(self, requests):

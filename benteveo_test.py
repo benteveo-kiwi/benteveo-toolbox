@@ -64,6 +64,12 @@ class GenericMock(object):
         """
         return "setting"
 
+    def __len__(self):
+        """
+        This function is called when len() is called on GenericMock(). For ease of testability it always returns 1337.
+        """
+        return 1337
+
 class TestToolbox(unittest.TestCase):
 
     def _cem(self, method, url, dict=None):
@@ -82,7 +88,6 @@ class TestToolbox(unittest.TestCase):
             dict = OrderedDict()
 
         httpRequestResponse = GenericMock()
-        httpRequestResponse.response.length = 1337
 
         callbacks = GenericMock()
         callbacks.helpers.analyzeRequest.return_value.method = method
