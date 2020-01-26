@@ -133,7 +133,7 @@ class EndpointTableModel(AbstractTableModel):
         if hash not in self.endpoints:
             self.endpoints[hash] = EndpointModel(method, url)
 
-        self.endpoints[hash].add(RequestModel(httpRequestResponse, analyzedRequest))
+        self.endpoints[hash].add(RequestModel(httpRequestResponse, self.callbacks))
 
         added_at_index = len(self.endpoints)
         self.fireTableRowsInserted(added_at_index, added_at_index)
@@ -247,20 +247,30 @@ class RequestModel(object):
         self.repeated = False
 
     @property
-    def analyzedResponse(self):
-        if self._analyzedResponse:
-            return self._analyzedResponse
-        else:
-            self._analyzedResponse = self.callbacks.helpers.analyzeResponse(self.httpRequestResponse.response)
-            return self._analyzedResponse
-
-    @property
     def analyzedRequest(self):
+        """
+        This is a property method that is invoked when the analyzedRequest property is accessed.
+        """
         if self._analyzedRequest:
             return self._analyzedRequest
         else:
-            self._analyzedRequest = self.callbacks.helpers.analyzeRequest(self.httpRequestResponse.request)
+            self._analyzedRequest = self.callbacks.helpers.analyzeRequest(self.httpRequestResponse)
             return self._analyzedRequest
+
+    @property
+    def analyzedResponse(self):
+        """
+        This is a property method that is invoked when the analyzedResponse property is accessed.
+        """
+        if self._analyzedResponse:
+            return self._analyzedResponse
+        else:
+            if self.httpRequestResponse.response:
+                self._analyzedResponse = self.callbacks.helpers.analyzeResponse(self.httpRequestResponse.response)
+                return self._analyzedResponse
+            else:
+                return None
+
 
 class RequestTableModel(AbstractTableModel):
     """
@@ -314,24 +324,37 @@ class RequestTableModel(AbstractTableModel):
             rowIndex: y value to return the value for.
             columnIndex: x value to return the value for.
         """
+
+        print rowIndex, columnIndex
+
         request = self.requests[rowIndex]
         if columnIndex == 0:
+            print request.analyzedRequest.url.path
             return request.analyzedRequest.url.path
         elif columnIndex == 1:
-            return request.analyzedResponse.statusCode
+            if request.analyzedResponse:
+                return request.analyzedResponse.statusCode
+            else:
+                return ""
         elif columnIndex == 2:
-            if request.repeatedAnalyzedRequest != None:
+            print "c"
+            if request.repeatedAnalyzedRequest:
                 return request.repeatedAnalyzedRequest.status
             else:
                 return ""
         elif columnIndex == 3:
-            return request.httpRequestResponse.response.length
+            if request.httpRequestResponse.response:
+                return len(request.httpRequestResponse.response)
+            else:
+                return ""
         elif columnIndex == 4:
-            if request.repeatedAnalyzedRequest != None:
-                return request.repeaterhttpRequestResponse.response.length
+            print "e"
+            if request.repeatedAnalyzedRequest:
+                return len(request.repeaterhttpRequestResponse.response)
             else:
                 return ""
         elif columnIndex == 5:
+            print "f"
             return ""
 
     def updateRequests(self, requests):

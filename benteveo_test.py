@@ -20,6 +20,14 @@ class GenericMock(object):
         self.mocked = {}
 
     def __getattr__(self, name):
+        """
+        Gets called when an attribute is retrieved.
+
+        It attempts to retrieve the value from within the object if it exists, and if not returns another instance of GenericMock. If the same attribute is retrieved more than once, the same instance of GenericMock is retrieved.
+
+        Args:
+            name: the name of the attribute being retrieved.
+        """
         try:
             return object.__getattribute__(self, name)
         except AttributeError:
@@ -32,17 +40,28 @@ class GenericMock(object):
             return self.mocked[name]
 
     def __call__(self, *args):
+        """
+        This method is called when the object is invoked as a function.
+
+        It records the number of times it was called as well as the arguments it was called with the last time. It returns the `return_value` property so that users of this api can mock the return value of the function.
+        """
         self.call_count += 1
         self.call_args = args
         return self.return_value
 
     def getComponent(self, *args):
+        """
+        This is a hard-coded method that is required because of java type issues. It is required in many tests so it's less repetitive to put it here.
+        """
         class ComponentMock(Component):
             pass
 
         return ComponentMock()
 
     def loadExtensionSetting(self, *args):
+        """
+        This is a hard-coded method that is required because of java type issues. It is required in many tests so it's less repetitive to put it here.
+        """
         return "setting"
 
 class TestToolbox(unittest.TestCase):
