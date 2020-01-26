@@ -317,16 +317,24 @@ class TestToolbox(unittest.TestCase):
         rrtm.add("type", "search", "replace")
         rrtm.add("type2", "search2", "replace2")
 
-        self.assertEquals(len(rrtm.rules), 2)
+        self.assertEquals(rrtm.getRowCount(), 2)
         self.assertEquals(rrtm.getValueAt(0, 0), 1)
         self.assertEquals(rrtm.getValueAt(0, 1), "type")
-        self.assertEquals(rrtm.getValueAt(0, 2), 1)
-        self.assertEquals(rrtm.getValueAt(1, 0), 1)
-        self.assertEquals(rrtm.getValueAt(1, 1), 1)
-        self.assertEquals(rrtm.getValueAt(1, 2), 1)
-        self.assertEquals(rrtm.rules[1].type, "type2")
-        self.assertEquals(rrtm.rules[0].id, 1)
-        self.assertEquals(rrtm.rules[1].id, 2)
+        self.assertEquals(rrtm.getValueAt(0, 2), "search")
+        self.assertEquals(rrtm.getValueAt(0, 3), "replace")
+        self.assertEquals(rrtm.getValueAt(1, 0), 2)
+        self.assertEquals(rrtm.getValueAt(1, 1), "type2")
+        self.assertEquals(rrtm.getValueAt(1, 2), "search2")
+        self.assertEquals(rrtm.getValueAt(1, 3), "replace2")
+
+        rrtm.edit(2, "typemodified", "searchmodified", "replacemodified")
+        self.assertEquals(rrtm.getValueAt(1, 0), 2)
+        self.assertEquals(rrtm.getValueAt(1, 1), "typemodified")
+        self.assertEquals(rrtm.getValueAt(1, 2), "searchmodified")
+        self.assertEquals(rrtm.getValueAt(1, 3), "replacemodified")
+
+        rrtm.delete(2)
+        self.assertEquals(rrtm.getRowCount(), 1)
 
 if __name__ == '__main__':
     unittest.main()

@@ -114,9 +114,11 @@ class ToolboxUI():
         add.addActionListener(self.callbacks.addButtonClicked)
 
         edit = self.getButton("Edit", 20, 90)
+        edit.addActionListener(self.callbacks.editButtonClicked)
         delete = self.getButton("Delete", 20, 130)
+        delete.addActionListener(self.callbacks.deleteButtonClicked)
 
-        table = Table(state.replacementRulesTableModel)
+        table = Table(state.replacementRuleTableModel)
         tableView = JScrollPane(table)
         tableView.setBounds(180, 50, 800, 240)
 
@@ -220,11 +222,19 @@ class ToolboxUI():
 
         return tabs
 
+
 class ToolboxCallbacks(object):
     """
     Handles all callbacks for Swing objects.
     """
     def __init__(self, state, burpCallbacks):
+        """
+        Main constructor.
+
+        Args:
+            state: the state object.
+            burpCallbacks: the burp callbacks object.
+        """
         self.state = state
         self.burpCallbacks = burpCallbacks
 
@@ -248,9 +258,9 @@ class ToolboxCallbacks(object):
             for request in requests:
                 self.state.endpointTableModel.add(request)
 
-    def addButtonClicked(self, event):
+    def buildAddEditPrompt(self, typeValue=None, searchValue=None, replacementValue=None):
         """
-        Handles click of the replacement rule add button.
+        Builds the replacement rules add/edit prompt.
         """
         panel = Box.createVerticalBox()
 
@@ -259,13 +269,47 @@ class ToolboxCallbacks(object):
         searchLabel = JLabel("Header Name / Search String")
         search = JTextField()
         replaceLabel = JLabel("Replacement Value")
-        replace = JTextField()
+        replacement = JTextField()
 
         panel.add(typeLabel)
         panel.add(type)
         panel.add(searchLabel)
         panel.add(search)
         panel.add(replaceLabel)
-        panel.add(replace)
+        panel.add(replacement)
+
+        if typeValue:
+            type.setSelectedItem(typeValue)
+
+        if searchValue:
+            search.text = searchValue
+
+        if replacementValue:
+            replacement.text = replacementValue
+
+        title = "Add Replacement Rule" if type == None else "Edit Replacement Rule"
 
         result = JOptionPane.showConfirmDialog(None, panel, "Add Replacement Rule", JOptionPane.PLAIN_MESSAGE)
+
+        if result == JOptionPane.OK_OPTION:
+            if search.text == "":
+                JOptionPane.showMessageDialog(None, "Invalid header name / search string")
+                return
+            else:
+                return type.selectedItem, search.text, replacement.text
+
+    def addButtonClicked(self, event):
+        """
+        Handles click of the replacement rule add button.
+        """
+        type, search, replacement = self.buildAddEditPrompt()
+        self.state.replacementRuleTableModel.add(type, search, replacement)
+
+    def editButtonClicked(self, event):
+        rule = self.state.replacementRuleTableModel.selected
+        type, search, replacement = self.buildAddEditPrompt(rule.type, rule.search, rule.replacement)
+        self.state.replacementRuleTableModel.edit(rule.id, type, search, replacement)
+
+    def deleteButtonClicked(self, event):
+        rule = self.state.replacementRuleTableModel.selected
+        self.state.replacementRuleTableModel.delete(rule.id)

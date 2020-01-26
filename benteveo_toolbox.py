@@ -25,7 +25,7 @@ class BurpExtender(IBurpExtender):
 
         state.endpointTableModel = EndpointTableModel(state, callbacks)
         state.requestTableModel = RequestTableModel(state, callbacks)
-        state.replacementRulesTableModel = ReplacementRuleTableModel()
+        state.replacementRuleTableModel = ReplacementRuleTableModel()
 
         ui = ToolboxUI()
         splitpane = ui.buildUi(state, callbacks)

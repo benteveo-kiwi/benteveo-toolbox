@@ -332,13 +332,14 @@ class ReplacementRuleTableModel(AbstractTableModel):
         self.lock = Lock()
         self.rules = []
         self.id_counter = 0
+        self.selected = None
 
     def getRowCount(self):
         """
         Returns the number of rows for rendering the table.
         """
         try:
-            return len(self.active_rules)
+            return len(self.rules)
         except:
             return 0
 
@@ -362,23 +363,68 @@ class ReplacementRuleTableModel(AbstractTableModel):
             rowIndex: which row to fetch the value for.
             columnIndex: which column to fetch the value for.
         """
-        return
-        logEntry = self._log.get(rowIndex)
+        rule = self.rules[rowIndex]
         if columnIndex == 0:
-            return self.state._callbacks.getToolName(logEntry._tool)
+            return rule.id
         if columnIndex == 1:
-            return logEntry._url.toString()
+            return rule.type
+        if columnIndex == 2:
+            return rule.search
+        if columnIndex == 3:
+            return rule.replacement
         return ""
 
-    def add(self, type, search, replace):
+    def add(self, type, search, replacement):
         """
         Adds a replacement rule. Called when a hacker clicks the "Add" button on the Config panel.
 
         Args:
             type: which kind of rule to apply.
             search: search value, e.g. header name or string to replace.
-            replace: replacement value.
+            replacement: replacement value.
         """
         with self.lock:
             self.id_counter += 1
-            self.rules.append(ReplacementRuleModel(self.id_counter, type, search, replace))
+            self.rules.append(ReplacementRuleModel(self.id_counter, type, search, replacement))
+
+            rows = len(self.rules) - 1
+            self.fireTableRowsInserted(rows, rows)
+
+    def edit(self, id, type, search, replacement):
+        """
+        Edits a replacement rule. Called when a hacker clicks the "Edit" button and a row is selected in the config panel.
+
+        Args:
+            id: the internal id of the rule to replace. See ReplacementRuleModel.id
+            type: which kind of rule to apply.
+            search: search value.
+            replace: replacement value.
+        """
+        with self.lock:
+            for nb, rule in enumerate(self.rules):
+                if rule.id == id:
+                    self.rules[nb].type = type
+                    self.rules[nb].search = search
+                    self.rules[nb].replacement = replacement
+
+                    self.fireTableDataChanged()
+
+    def delete(self, id):
+        """
+        Deletes a replacement rule. Called when a hacker clicks "Delete" in the config panel.
+
+        Args:
+            id: the internal id of the rule to delete.
+        """
+        with self.lock:
+            for nb, rule in enumerate(self.rules):
+                if rule.id == id:
+                    del self.rules[nb]
+
+                    self.fireTableDataChanged()
+
+    def selectRow(self, rowIndex):
+        """
+        Gets called when a user selects a row. This is useful for "Edit" or "Delete" operations.
+        """
+        self.selected = self.rules[rowIndex]
