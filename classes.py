@@ -24,6 +24,7 @@ from java.awt import BorderLayout
 from java.awt import FlowLayout
 from java.awt import Component
 from collections import OrderedDict
+import re
 
 class Table(JTable):
     """
@@ -102,6 +103,9 @@ class EndpointTableModel(AbstractTableModel):
     """
 
     cols = ["Method", "URL", "#", "Same Status", "Same Len"]
+    regex = [
+        re.compile("[a-f0-9]{64}"), # 748bbea58bb5db34e95d02edb2935c0f25cb1593e5ab837767e260a349c02ca7
+    ]
 
     def __init__(self, state, callbacks):
         """
@@ -150,7 +154,9 @@ class EndpointTableModel(AbstractTableModel):
         """
         In this endpoint, a hash is a string that is used to group requests.
 
-        Requests that have the same URL and method should be grouped together to avoid duplication of testing effort.
+        Requests that have the same URL and method should be grouped together to avoid duplication of testing effort. For example, "/users/1" and "/users/2" should both generate the same hash.
+
+        We do this by having a collection of regular expressions that are ran against each folder in every URL. If the regex matches, the folder is replaced in such a way that it becomes "/users/{ID}", which results in equal hashes for these kind of endpoints.
 
         Args:
             analyzedRequest: an analyzed request as returned by helpers.analyzeRequest()
@@ -158,7 +164,29 @@ class EndpointTableModel(AbstractTableModel):
         url = analyzedRequest.url.toString().split("?")[0]
         method = analyzedRequest.method
 
+        hash_url = []
+        for folder in url.split("/"):
+            if self.isId(folder):
+                hash_url.append("{ID}")
+            else:
+                hash_url.append(folder)
+
+        url = "/".join(hash_url)
+
         return method + "|" + url, url, method
+
+    def isId(self, folder):
+        """
+        Checks if this "folder" of the URL path looks like an ID according to our predefined regular expressions.
+
+        Args:
+            folder: a part of the file path. E.g. if you have a URL that looks like "images/image.jpg" then this function will be invoked twice, once with "images" and another with "image.jpg".
+        """
+        for regex in self.regex:
+            if regex.match(folder):
+                return True
+
+        return False
 
     def getRowCount(self):
         """

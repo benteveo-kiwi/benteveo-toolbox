@@ -132,9 +132,8 @@ class TestToolbox(unittest.TestCase):
         self.assertEqual(mock.setExtensionName.call_count, 1)
 
     def testGenerateEndpointHash(self):
-        state = GenericMock()
-        callbacks = GenericMock()
-        etm = EndpointTableModel(state, callbacks)
+        etm, state, callbacks = self._cetm()
+
 
         mockRequestInfo = GenericMock()
         mockRequestInfo.method = "GET"
@@ -144,6 +143,18 @@ class TestToolbox(unittest.TestCase):
         hash, _, _ = etm.generateEndpointHash(mockRequestInfo)
 
         self.assertEquals(hash, "GET|http://www.example.org/users")
+
+    def testGenerateEndpointHash64ByteHexadecimal(self):
+        etm, state, callbacks = self._cetm()
+
+        mockRequestInfo = GenericMock()
+        mockRequestInfo.method = "GET"
+        mockRequestInfo.url = URL("http://www.example.org/users/748bbea58bb5db34e95d02edb2935c0f25cb1593e5ab837767e260a349c02ca7")
+        mockRequestInfo.status = "200"
+
+        hash, _, _ = etm.generateEndpointHash(mockRequestInfo)
+
+        self.assertEquals(hash, "GET|http://www.example.org/users/{ID}")
 
     def testRefreshPersistsSettings(self):
         state = GenericMock()
