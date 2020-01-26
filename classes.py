@@ -48,7 +48,7 @@ class Table(JTable):
             toggle: whether to toggle the selection upon this click.
             extend: whether to extend the selection and have two or more rows selected.
         """
-        self.model.selectRow(row)
+        self.model.selectRow(self.convertRowIndexToModel(row))
         JTable.changeSelection(self, row, col, toggle, extend)
 
 class ReplacementRulesTableModel(AbstractTableModel):
@@ -144,7 +144,7 @@ class EndpointTableModel(AbstractTableModel):
             self.endpoints[hash].add(RequestModel(httpRequestResponse, self.callbacks))
 
             added_at_index = len(self.endpoints)
-            self.fireTableRowsInserted(added_at_index, added_at_index)
+            self.fireTableRowsInserted(added_at_index - 1, added_at_index - 1)
 
     def generateEndpointHash(self, analyzedRequest):
         """
@@ -596,15 +596,17 @@ class ToolboxUI():
         splitpane.setDividerLocation(1000)
 
         endpointTable = Table(state.endpointTableModel)
-        endpointTable.getColumnModel().getColumn(0).setPreferredWidth(30)
-        endpointTable.getColumnModel().getColumn(1).setPreferredWidth(400)
-        # endpointTable.setAutoCreateRowSorter(True)
+        endpointTable.getColumnModel().getColumn(0).setPreferredWidth(15)
+        endpointTable.getColumnModel().getColumn(1).setPreferredWidth(500)
+        endpointTable.setAutoCreateRowSorter(True)
 
         endpointView = JScrollPane(endpointTable)
         callbacks.customizeUiComponent(endpointTable)
         callbacks.customizeUiComponent(endpointView)
 
         requestTable = Table(state.requestTableModel)
+        requestTable.getColumnModel().getColumn(0).setPreferredWidth(500)
+
         requestView = JScrollPane(requestTable)
         callbacks.customizeUiComponent(requestTable)
         callbacks.customizeUiComponent(requestView)
