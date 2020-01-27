@@ -444,9 +444,11 @@ class TestToolbox(unittest.TestCase):
     def testCheckButtonPersistsState(self):
         cb, state, burpCallbacks = self._ctc()
 
-        cb.checkButtonClicked(GenericMock())
+        with self.mockUtilityCalls():
 
-        self.assertEquals(burpCallbacks.saveExtensionSetting.call_count, 1)
+            cb.checkButtonClicked(GenericMock())
+
+            self.assertEquals(burpCallbacks.saveExtensionSetting.call_count, 1)
 
     def testCheckButtonCallsPerformRequestWithRightParams(self):
 
