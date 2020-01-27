@@ -20,10 +20,13 @@ from java.awt import GridBagLayout
 from java.awt import BorderLayout
 from java.awt import FlowLayout
 from java.awt import Component
+from java.lang import String
 from tables import Table
 from implementations import MessageEditorController, HttpService
 import jarray
+import re
 from utility import perform_request, apply_rules, get_header, log
+from utility import REPLACE_HEADER_NAME, REPLACE_STRING, NoSuchHeaderException
 
 class ToolboxUI():
 
@@ -281,7 +284,7 @@ class ToolboxCallbacks(object):
         panel = Box.createVerticalBox()
 
         typeLabel = JLabel("Replacement type")
-        type = JComboBox(["Replace by Header Name", "Replace String"])
+        type = JComboBox([REPLACE_HEADER_NAME, REPLACE_STRING])
         searchLabel = JLabel("Header Name / Search String")
         search = JTextField()
         replaceLabel = JLabel("Replacement Value")
@@ -354,20 +357,23 @@ class ToolboxCallbacks(object):
     def checkButtonClicked(self, event):
         """
         Gets called when a user clicks the check button. Repeats the request with the modifications made and assesses whether the result is positive or negative.
+
+        Normalizes the newlines in the textarea to make them compatible with burp APIs and then converts them into a binary string.
         """
-        baseRequest = self.state.sessionCheckTextarea.text
-        self.burpCallbacks.saveExtensionSetting("scopeCheckRequest", baseRequest)
+        baseRequestString = re.sub(r"(?!\r)\n", "\r\n", self.state.sessionCheckTextarea.text)
+        baseRequest = self.burpCallbacks.helpers.stringToBytes(baseRequestString)
+        self.burpCallbacks.saveExtensionSetting("scopeCheckRequest", baseRequestString)
 
         try:
             hostHeader = get_header(self.burpCallbacks, baseRequest, "host")
-        except InvalidHeaderException:
+        except NoSuchHeaderException:
             log("Check request failed: no Host header present in session check request.")
             self.checkButtonSetFail()
             return
 
         target = HttpService(hostHeader, 443, "https")
 
-        modifiedRequest = apply_rules(self.state.replacementRuleTableModel.rules, baseRequest)
+        modifiedRequest = apply_rules(self.burpCallbacks(), self.state.replacementRuleTableModel.rules, baseRequest)
         response = perform_request(self.burpCallbacks, target, modifiedRequest)
         analyzedResponse = self.burpCallbacks.helpers.analyzeResponse(response.response)
 

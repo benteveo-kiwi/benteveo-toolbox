@@ -8,7 +8,10 @@ from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableMo
 from models import EndpointModel, RequestModel, ReplacementRuleModel
 from ui import ToolboxCallbacks
 from java.net import URL
+from java.util import ArrayList
+from java.lang import String
 import ui
+import utility
 import contextlib
 
 class GenericMock(object):
@@ -442,7 +445,39 @@ class TestToolbox(unittest.TestCase):
             self.assertEquals(ui.get_header.call_count, 1)
 
     def testGetHeader(self):
-        self.assertEquals(True, False)
+        testRequest = "whatever"
+        callbacks = GenericMock()
+
+        headers = ArrayList()
+        headers.add("GET / HTTP/1.1")
+        headers.add("Host: example.org")
+
+        callbacks.helpers.analyzeRequest.return_value.headers = headers
+
+        host_header = utility.get_header(callbacks, testRequest, "host")
+
+        self.assertEquals("example.org", host_header)
+
+    def testApplyRulesSubstituteHeader(self):
+        rrtm = self._crrtm()
+        rrtm.add(utility.REPLACE_HEADER_NAME, "X-test-header", "newvalue")
+
+        bytes = String("wuh eva").getBytes()
+
+        headers = ArrayList()
+        headers.add("GET / HTTP/1.1")
+        headers.add("Host: example.org")
+        headers.add("X-test-header: oldvalue")
+
+        callbacks = GenericMock()
+        utility.Arrays = GenericMock()
+        callbacks.helpers.analyzeRequest.return_value.headers = headers
+
+        modified, _ = utility.apply_rules(callbacks, rrtm.rules, bytes)
+        newHeaders = callbacks.helpers.buildHttpMessage.call_args[0]
+
+        self.assertEquals(modified, 1)
+        self.assertTrue("X-test-header: newvalue" in newHeaders, "Should contain new replaced header.")
 
 if __name__ == '__main__':
     unittest.main()

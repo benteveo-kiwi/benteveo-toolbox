@@ -20,13 +20,18 @@ class Tab(ITab):
         return self.splitpane
 
 class HttpListener(IHttpListener):
-    def __init__(self, state):
+    def __init__(self, state, callbacks):
         self.state = state
+        self.callbacks = callbacks
 
     def processHttpMessage(self, toolFlag, messageIsRequest, messageInfo):
         """
         New HTTP message is being sent by burp.
         """
+        if messageIsRequest:
+
+            print type(messageInfo.request), messageInfo.request
+            # print self.callbacks.helpers.analyzeRequest(messageInfo.request).headers, len(self.callbacks.helpers.analyzeRequest(messageInfo.request).headers)
         # if messageIsRequest:
         #     return
         #

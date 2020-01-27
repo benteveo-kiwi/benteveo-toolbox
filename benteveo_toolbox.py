@@ -31,5 +31,5 @@ class BurpExtender(IBurpExtender):
         splitpane = ui.buildUi(state, callbacks)
 
         callbacks.addSuiteTab(Tab(splitpane))
-        callbacks.registerHttpListener(HttpListener(state))
+        callbacks.registerHttpListener(HttpListener(state, callbacks))
         callbacks.setExtensionName("Benteveo Toolbox")
