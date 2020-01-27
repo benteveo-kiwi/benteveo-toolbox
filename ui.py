@@ -23,6 +23,7 @@ from java.awt import Component
 from tables import Table
 from implementations import MessageEditorController
 import jarray
+from utility import perform_request, apply_rules
 
 class ToolboxUI():
 
@@ -351,7 +352,7 @@ class ToolboxCallbacks(object):
 
     def checkButtonClicked(self, event):
         """
-        Gets called when a user clicks the checkButton. Repeats the request with the modifications made and assesses whether the result is positive or negative.
+        Gets called when a user clicks the check button. Repeats the request with the modifications made and assesses whether the result is positive or negative.
         """
         baseRequest = self.state.sessionCheckTextarea.text
         self.burpCallbacks.saveExtensionSetting("scopeCheckRequest", baseRequest)

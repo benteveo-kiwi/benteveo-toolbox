@@ -9,6 +9,7 @@ from models import EndpointModel, RequestModel, ReplacementRuleModel
 from ui import ToolboxCallbacks
 from java.net import URL
 import ui
+import contextlib
 
 class GenericMock(object):
     """
@@ -73,33 +74,49 @@ class GenericMock(object):
         """
         return 1337
 
+
+
 class TestToolbox(unittest.TestCase):
     """
     Main testing class. Contains tests for all classes within the codebase.
     """
-
-    def mockSwingClasses(self):
+    @contextlib.contextmanager
+    def mockSwingClasses(name):
         """
         Mocks JOptionPane so that a pop-up window does not appear during test runs.
+
+        The annotation makes it compatible with the `with` statement. See https://stackoverflow.com/a/3774934 for more info.
         """
-        self._JOptionPane = ui.JOptionPane
-        self._JTextField = ui.JTextField
-        self._Box = ui.Box
+        _JOptionPane = ui.JOptionPane
+        _JTextField = ui.JTextField
+        _Box = ui.Box
 
         ui.JOptionPane = GenericMock()
-        ui.JOptionPane.showConfirmDialog.return_value = self._JOptionPane.OK_OPTION
-        ui.JOptionPane.OK_OPTION = self._JOptionPane.OK_OPTION
+        ui.JOptionPane.showConfirmDialog.return_value = _JOptionPane.OK_OPTION
+        ui.JOptionPane.OK_OPTION = _JOptionPane.OK_OPTION
 
         ui.JTextField = GenericMock()
         ui.Box = GenericMock()
+        yield
+        ui.JOptionPane = _JOptionPane
+        ui.JTextField = _JTextField
+        ui.Box = _Box
 
-    def mockSwingClassesClean(self):
+    @contextlib.contextmanager
+    def mockUtilityCalls(name):
         """
-        Restore JOptionPane to it's oriiginal glory to prevent shenanigans.
+        Mocks calls to the utility module for ease of testability.
         """
-        ui.JOptionPane = self._JOptionPane
-        ui.JTextField = self._JTextField
-        ui.Box = self._Box
+        perform_request = ui.perform_request
+        apply_rules = ui.apply_rules
+
+        ui.perform_request = GenericMock()
+        ui.apply_rules = GenericMock()
+
+        yield
+
+        ui.perform_request = perform_request
+        ui.apply_rules = apply_rules
 
     def _cem(self, method, url, dict=None):
         """
@@ -363,8 +380,7 @@ class TestToolbox(unittest.TestCase):
         self.assertEquals(rrtm.getRowCount(), 1)
 
     def testAddButton(self):
-        self.mockSwingClasses()
-        try:
+        with self.mockSwingClasses():
             cb, state, burpCallbacks = self._ctc()
 
             state.replacementRuleTableModel.rules = [ReplacementRuleModel(1, "type", "search", "replacement")]
@@ -378,8 +394,6 @@ class TestToolbox(unittest.TestCase):
 
             self.assertEquals(state.replacementRuleTableModel.add.call_count, 1, "Should have saved user input.")
             self.assertEquals(burpCallbacks.saveExtensionSetting.call_count, 1)
-        finally:
-            self.mockSwingClassesClean()
 
     def testReplacementRulesJson(self):
         rrtm = self._crrtm()
@@ -413,6 +427,19 @@ class TestToolbox(unittest.TestCase):
         cb.checkButtonClicked(GenericMock())
 
         self.assertEquals(burpCallbacks.saveExtensionSetting.call_count, 1)
+
+    def testCheckButtonCallsPerformRequestWithRightParams(self):
+
+        with self.mockUtilityCalls():
+            cb, state, burpCallbacks = self._ctc()
+            cb.checkButtonClicked(GenericMock())
+
+            self.assertEquals(ui.perform_request.call_count, 1)
+            self.assertEquals(ui.apply_rules.call_count, 1)
+
+
+
+
 
 if __name__ == '__main__':
     unittest.main()
