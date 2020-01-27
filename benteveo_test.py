@@ -407,5 +407,12 @@ class TestToolbox(unittest.TestCase):
         self.assertEquals(rrtm.getValueAt(1, 3), "replace2")
         self.assertEquals(rrtm.fireTableDataChanged.call_count, 1)
 
+    def testCheckButtonPersistsState(self):
+        cb, state, burpCallbacks = self._ctc()
+
+        cb.checkButtonClicked(GenericMock())
+
+        self.assertEquals(burpCallbacks.saveExtensionSetting.call_count, 1)
+
 if __name__ == '__main__':
     unittest.main()

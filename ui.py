@@ -146,10 +146,16 @@ class ToolboxUI():
         rules.setMaximumSize(Dimension(self.CONFIG_PAGE_WIDTH, 300))
 
         title = self.getTitle("Session Check", 20, 10)
+
         check = self.getButton("Check", 20, 50)
+        check.addActionListener(self.callbacks.checkButtonClicked)
+
         run_all = self.getButton("Run ALL", 20, 90)
         run_new = self.getButton("Run NEW", 20, 130)
+
         textarea = self.getTextArea()
+        state.sessionCheckTextarea = textarea.viewport.view
+        state.sessionCheckTextarea.setText(callbacks.loadExtensionSetting("scopeCheckRequest"))
 
         rules.add(title)
         rules.add(check)
@@ -251,10 +257,9 @@ class ToolboxCallbacks(object):
         """
         Handles click of refresh button. This reloads the results page with the new scope.
         """
-
         self.state.endpointTableModel.clear()
 
-        scopes = self.state.scopeTextArea.getText()
+        scopes = self.state.scopeTextArea.text
         self.burpCallbacks.saveExtensionSetting("scopes", scopes)
 
         scope_urls = scopes.split("\n")
@@ -343,3 +348,10 @@ class ToolboxCallbacks(object):
         self.state.replacementRuleTableModel.delete(rule.id)
 
         self.burpCallbacks.saveExtensionSetting("replacementRules", self.state.replacementRuleTableModel.exportJsonRules())
+
+    def checkButtonClicked(self, event):
+        """
+        Gets called when a user clicks the checkButton. Repeats the request with the modifications made and assesses whether the result is positive or negative.
+        """
+        baseRequest = self.state.sessionCheckTextarea.text
+        self.burpCallbacks.saveExtensionSetting("scopeCheckRequest", baseRequest)
