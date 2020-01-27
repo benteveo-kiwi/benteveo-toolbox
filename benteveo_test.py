@@ -77,6 +77,14 @@ class GenericMock(object):
         """
         return 1337
 
+    def __iter__(self):
+        """
+        This function is called when a caller attempts to use generic mock as an iterator. It yields three GenericMock() objects.
+        """
+        yield GenericMock()
+        yield GenericMock()
+        yield GenericMock()
+
 
 
 class TestToolbox(unittest.TestCase):
@@ -182,6 +190,13 @@ class TestToolbox(unittest.TestCase):
         """
         state = GenericMock()
         burpCallbacks = GenericMock()
+
+        state.sessionCheckTextarea.text = "GET / HTTP/1.1\r\nHost: example.org\r\n\r\n"
+        request = ArrayList()
+        request.add("GET / HTTP/1.1")
+        request.add("Host: example.org")
+        burpCallbacks.helpers.analyzeRequest.return_value.headers = request
+
         cb = ToolboxCallbacks(state, burpCallbacks)
 
         return cb, state, burpCallbacks
@@ -227,12 +242,11 @@ class TestToolbox(unittest.TestCase):
     def testRefreshPersistsSettings(self):
         cb, state, burpCallbacks = self._ctc()
 
-        state.scopeTextArea.getText.return_value = "https://example.com/\nhttps://example.org/\n"
+        state.scopeTextArea.text = "https://example.com/\nhttps://example.org/\n"
         burpCallbacks.getSiteMap.return_value = [GenericMock(),GenericMock(),GenericMock()]
 
         cb.refreshButtonClicked(GenericMock())
 
-        self.assertEquals(state.scopeTextArea.getText.call_count, 1)
         self.assertEquals(burpCallbacks.saveExtensionSetting.call_count, 1)
         self.assertEquals(burpCallbacks.getSiteMap.call_count, 2)
         self.assertEquals(state.endpointTableModel.clear.call_count, 1)

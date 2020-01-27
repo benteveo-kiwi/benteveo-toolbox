@@ -375,6 +375,7 @@ class ToolboxCallbacks(object):
 
         modifiedRequest = apply_rules(self.burpCallbacks(), self.state.replacementRuleTableModel.rules, baseRequest)
         response = perform_request(self.burpCallbacks, target, modifiedRequest)
+
         analyzedResponse = self.burpCallbacks.helpers.analyzeResponse(response.response)
 
         if analyzedResponse.statusCode == 200:

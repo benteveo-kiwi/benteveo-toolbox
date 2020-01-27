@@ -30,6 +30,7 @@ def apply_rules(callbacks, rules, request):
     Returns:
         tuple: returns the modified request as the first value and the number of modifications applied as a second value
     """
+    modified = False
     nbModifications = 0
     for rule in rules:
         if rule.type == REPLACE_HEADER_NAME:
