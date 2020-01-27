@@ -416,11 +416,13 @@ class ToolboxCallbacks(NewThreadCaller):
 
         Normalizes the newlines in the textarea to make them compatible with burp APIs and then converts them into a binary string.
         """
-        print self.state.sessionCheckTextarea
-        print self.state
-        baseRequestString = re.sub(r"(?!\r)\n", "\r\n", self.state.sessionCheckTextarea.text)
+
+        textAreaText = self.state.sessionCheckTextarea.text
+
+        self.burpCallbacks.saveExtensionSetting("scopeCheckRequest", textAreaText)
+
+        baseRequestString = re.sub(r"(?!\r)\n", "\r\n", textAreaText)
         baseRequest = self.burpCallbacks.helpers.stringToBytes(baseRequestString)
-        self.burpCallbacks.saveExtensionSetting("scopeCheckRequest", baseRequestString)
 
         try:
             hostHeader = get_header(self.burpCallbacks, baseRequest, "host")
@@ -438,9 +440,10 @@ class ToolboxCallbacks(NewThreadCaller):
 
             if analyzedResponse.statusCode == 200:
                 self.state.checkButton.setBackground(Color(107,255,127))
+                self.state.checkButton.setOpaque(True)
                 self.state.checkButton.setText("Check: OK")
             else:
-                log("Check request failed: response not 200 OK.")
+                log("Check request failed: response not 200 OK, was %s." % str(analyzedResponse.statusCode))
                 self.checkButtonSetFail()
         else:
             log("Check request not issued because no modifications to it were made based on the rules provided by user.")
