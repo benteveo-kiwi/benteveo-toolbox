@@ -2,7 +2,6 @@ from java.util import ArrayList
 from java.util import Arrays
 
 REPLACE_HEADER_NAME = "Replace by header name"
-REPLACE_STRING = "Replace string"
 
 class NoSuchHeaderException(Exception):
     pass

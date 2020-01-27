@@ -26,7 +26,7 @@ from implementations import MessageEditorController, HttpService
 import jarray
 import re
 from utility import perform_request, apply_rules, get_header, log
-from utility import REPLACE_HEADER_NAME, REPLACE_STRING, NoSuchHeaderException
+from utility import REPLACE_HEADER_NAME, NoSuchHeaderException
 
 class ToolboxUI():
 
@@ -284,7 +284,7 @@ class ToolboxCallbacks(object):
         panel = Box.createVerticalBox()
 
         typeLabel = JLabel("Replacement type")
-        type = JComboBox([REPLACE_HEADER_NAME, REPLACE_STRING])
+        type = JComboBox([REPLACE_HEADER_NAME])
         searchLabel = JLabel("Header Name / Search String")
         search = JTextField()
         replaceLabel = JLabel("Replacement Value")
