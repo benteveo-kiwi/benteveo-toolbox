@@ -21,9 +21,9 @@ from java.awt import BorderLayout
 from java.awt import FlowLayout
 from java.awt import Component
 from tables import Table
-from implementations import MessageEditorController
+from implementations import MessageEditorController, HttpService
 import jarray
-from utility import perform_request, apply_rules
+from utility import perform_request, apply_rules, get_header, log
 
 class ToolboxUI():
 
@@ -133,7 +133,7 @@ class ToolboxUI():
             storedReplacementRules = callbacks.loadExtensionSetting("replacementRules")
             state.replacementRuleTableModel.importJsonRules(storedReplacementRules)
         except (ValueError, KeyError):
-            print "Invalid replacement rules stored. Ignoring."
+            log("Invalid replacement rules stored. Ignoring.")
             pass
 
         return rules
@@ -150,6 +150,7 @@ class ToolboxUI():
 
         check = self.getButton("Check", 20, 50)
         check.addActionListener(self.callbacks.checkButtonClicked)
+        state.checkButton = check
 
         run_all = self.getButton("Run ALL", 20, 90)
         run_new = self.getButton("Run NEW", 20, 130)
@@ -356,3 +357,30 @@ class ToolboxCallbacks(object):
         """
         baseRequest = self.state.sessionCheckTextarea.text
         self.burpCallbacks.saveExtensionSetting("scopeCheckRequest", baseRequest)
+
+        try:
+            hostHeader = get_header(self.burpCallbacks, baseRequest, "host")
+        except InvalidHeaderException:
+            log("Check request failed: no Host header present in session check request.")
+            self.checkButtonSetFail()
+            return
+
+        target = HttpService(hostHeader, 443, "https")
+
+        modifiedRequest = apply_rules(self.state.replacementRuleTableModel.rules, baseRequest)
+        response = perform_request(self.burpCallbacks, target, modifiedRequest)
+        analyzedResponse = self.burpCallbacks.helpers.analyzeResponse(response.response)
+
+        if analyzedResponse.statusCode == 200:
+            self.state.checkButton.setBackground(Color(107,255,127))
+            self.state.checkButton.setText("Check: OK")
+        else:
+            log("Check request failed: response not 200 OK.")
+            self.checkButtonSetFail()
+
+    def checkButtonSetFail(self):
+        """
+        Convenience function to make the check button red.
+        """
+        self.state.checkButton.setBackground(Color(255,202,128))
+        self.state.checkButton.setText("Check: FAIL")

@@ -81,7 +81,7 @@ class TestToolbox(unittest.TestCase):
     Main testing class. Contains tests for all classes within the codebase.
     """
     @contextlib.contextmanager
-    def mockSwingClasses(name):
+    def mockSwingClasses(_):
         """
         Mocks JOptionPane so that a pop-up window does not appear during test runs.
 
@@ -103,20 +103,23 @@ class TestToolbox(unittest.TestCase):
         ui.Box = _Box
 
     @contextlib.contextmanager
-    def mockUtilityCalls(name):
+    def mockUtilityCalls(_):
         """
         Mocks calls to the utility module for ease of testability.
         """
         perform_request = ui.perform_request
         apply_rules = ui.apply_rules
+        get_header = ui.get_header
 
         ui.perform_request = GenericMock()
         ui.apply_rules = GenericMock()
+        ui.get_header = GenericMock()
 
         yield
 
         ui.perform_request = perform_request
         ui.apply_rules = apply_rules
+        ui.get_header = get_header
 
     def _cem(self, method, url, dict=None):
         """
@@ -434,12 +437,12 @@ class TestToolbox(unittest.TestCase):
             cb, state, burpCallbacks = self._ctc()
             cb.checkButtonClicked(GenericMock())
 
-            self.assertEquals(ui.perform_request.call_count, 1)
             self.assertEquals(ui.apply_rules.call_count, 1)
+            self.assertEquals(ui.perform_request.call_count, 1)
+            self.assertEquals(ui.get_header.call_count, 1)
 
-
-
-
+    def testGetHeader(self):
+        self.assertEquals(True, False)
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,6 +1,7 @@
 from burp import ITab
 from burp import IHttpListener
 from burp import IMessageEditorController
+from burp import IHttpService
 
 class Tab(ITab):
     def __init__(self, splitpane):
@@ -45,3 +46,19 @@ class MessageEditorController(IMessageEditorController):
 
     def getResponse(self):
         return self.state.currentlyDisplayedItem.getResponse()
+
+
+class HttpService(IHttpService):
+    def __init__(self, host, port, protocol):
+        self._host = host
+        self._port = port
+        self._protocol = protocol
+
+    def getHost(self):
+        return self._host
+
+    def getPort(self):
+        return self._port
+
+    def getProtocol(self):
+        return self._protocol
