@@ -118,17 +118,15 @@ class TestToolbox(unittest.TestCase):
         """
         Mocks calls to the utility module for ease of testability.
         """
-        perform_request = ui.perform_request
         apply_rules = ui.apply_rules
         get_header = ui.get_header
 
-        ui.perform_request = GenericMock()
         ui.apply_rules = GenericMock()
+        ui.apply_rules.return_value = (False, None)
         ui.get_header = GenericMock()
 
         yield
 
-        ui.perform_request = perform_request
         ui.apply_rules = apply_rules
         ui.get_header = get_header
 
@@ -198,6 +196,7 @@ class TestToolbox(unittest.TestCase):
         burpCallbacks.helpers.analyzeRequest.return_value.headers = request
 
         cb = ToolboxCallbacks(state, burpCallbacks)
+        cb.insideAUnitTest = True
 
         return cb, state, burpCallbacks
 
@@ -450,14 +449,13 @@ class TestToolbox(unittest.TestCase):
 
             self.assertEquals(burpCallbacks.saveExtensionSetting.call_count, 1)
 
-    def testCheckButtonCallsPerformRequestWithRightParams(self):
+    def testCheckButtonBasicCalls(self):
 
         with self.mockUtilityCalls():
             cb, state, burpCallbacks = self._ctc()
             cb.checkButtonClicked(GenericMock())
 
             self.assertEquals(ui.apply_rules.call_count, 1)
-            self.assertEquals(ui.perform_request.call_count, 1)
             self.assertEquals(ui.get_header.call_count, 1)
 
     def testGetHeader(self):

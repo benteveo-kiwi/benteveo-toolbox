@@ -21,11 +21,13 @@ from java.awt import BorderLayout
 from java.awt import FlowLayout
 from java.awt import Component
 from java.lang import String
+from java.lang import Runnable
+from java.lang import Thread
 from tables import Table
 from implementations import MessageEditorController, HttpService
 import jarray
 import re
-from utility import perform_request, apply_rules, get_header, log
+from utility import apply_rules, get_header, log
 from utility import REPLACE_HEADER_NAME, NoSuchHeaderException
 
 class ToolboxUI():
@@ -243,7 +245,61 @@ class ToolboxUI():
 class InvalidInputException(Exception):
     pass
 
-class ToolboxCallbacks(object):
+class PythonFunctionRunnable(Runnable):
+    """
+    A python implementation of Runnable.
+    """
+    def __init__(self, method, args, kwargs):
+        """
+        Stores this variables for when the run() method is called.
+
+        Args:
+            method: the method to call
+            args: args to pass
+            kwargs: kwargs to pass
+        """
+        self.method = method
+        self.args = args
+        self.kwargs = kwargs
+
+    def run(self):
+        """
+        Method that gets called by the new thread.
+        """
+        self.method(*self.args, **self.kwargs)
+
+class NewThreadCaller(object):
+    """
+    Superclass of callbacks that ensures callbacks are run on their own thread.
+
+    This is because Swing callbacks are made on the main UI thread, which results in complex computations causing a hang on the UI. Instead of adding something on each callback, this object handles this in a generic way for all methods.
+    """
+
+    insideAUnitTest = False
+
+    def __getattribute__(self, name):
+        """
+        This method gets called when somebody tries to access a method.
+
+        If we're not testing, we spawn the method in a new thread. If testing it just gets called in the same thread.
+
+        Args:
+            name: the name of the potential method.
+        """
+        attr = object.__getattribute__(self, name)
+
+        if object.__getattribute__(self, 'insideAUnitTest'):
+            return attr
+
+        if hasattr(attr, '__call__'):
+            def newfunc(*args, **kwargs):
+                runnable = PythonFunctionRunnable(attr, args, kwargs)
+                Thread(runnable).start()
+            return newfunc
+        else:
+            return attr
+
+class ToolboxCallbacks(NewThreadCaller):
     """
     Handles all callbacks for Swing objects.
     """
@@ -360,6 +416,8 @@ class ToolboxCallbacks(object):
 
         Normalizes the newlines in the textarea to make them compatible with burp APIs and then converts them into a binary string.
         """
+        print self.state.sessionCheckTextarea
+        print self.state
         baseRequestString = re.sub(r"(?!\r)\n", "\r\n", self.state.sessionCheckTextarea.text)
         baseRequest = self.burpCallbacks.helpers.stringToBytes(baseRequestString)
         self.burpCallbacks.saveExtensionSetting("scopeCheckRequest", baseRequestString)
@@ -371,18 +429,21 @@ class ToolboxCallbacks(object):
             self.checkButtonSetFail()
             return
 
-        target = HttpService(hostHeader, 443, "https")
+        target = self.burpCallbacks.helpers.buildHttpService(hostHeader, 443, "https")
 
-        modifiedRequest = apply_rules(self.burpCallbacks(), self.state.replacementRuleTableModel.rules, baseRequest)
-        response = perform_request(self.burpCallbacks, target, modifiedRequest)
+        nbModified, modifiedRequest = apply_rules(self.burpCallbacks, self.state.replacementRuleTableModel.rules, baseRequest)
+        if nbModified > 0:
+            response = self.burpCallbacks.makeHttpRequest(target, modifiedRequest)
+            analyzedResponse = self.burpCallbacks.helpers.analyzeResponse(response.response)
 
-        analyzedResponse = self.burpCallbacks.helpers.analyzeResponse(response.response)
-
-        if analyzedResponse.statusCode == 200:
-            self.state.checkButton.setBackground(Color(107,255,127))
-            self.state.checkButton.setText("Check: OK")
+            if analyzedResponse.statusCode == 200:
+                self.state.checkButton.setBackground(Color(107,255,127))
+                self.state.checkButton.setText("Check: OK")
+            else:
+                log("Check request failed: response not 200 OK.")
+                self.checkButtonSetFail()
         else:
-            log("Check request failed: response not 200 OK.")
+            log("Check request not issued because no modifications to it were made based on the rules provided by user.")
             self.checkButtonSetFail()
 
     def checkButtonSetFail(self):

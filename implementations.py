@@ -28,10 +28,6 @@ class HttpListener(IHttpListener):
         """
         New HTTP message is being sent by burp.
         """
-        if messageIsRequest:
-
-            print type(messageInfo.request), messageInfo.request
-            # print self.callbacks.helpers.analyzeRequest(messageInfo.request).headers, len(self.callbacks.helpers.analyzeRequest(messageInfo.request).headers)
         # if messageIsRequest:
         #     return
         #
