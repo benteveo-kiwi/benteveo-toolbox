@@ -1,18 +1,18 @@
-import math
-import unittest
-import operator
+from benteveo_toolbox import BurpExtender
 from collections import OrderedDict
 from java.awt import Component
-from benteveo_toolbox import BurpExtender
-from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableModel
-from models import EndpointModel, RequestModel, ReplacementRuleModel
-from ui import ToolboxCallbacks, STATUS_OK, STATUS_FAILED
+from java.lang import String
 from java.net import URL
 from java.util import ArrayList
-from java.lang import String
-import ui
-import utility
+from models import EndpointModel, RequestModel, ReplacementRuleModel
+from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableModel
+from ui import ToolboxCallbacks, STATUS_OK, STATUS_FAILED
 import contextlib
+import math
+import operator
+import ui
+import unittest
+import utility
 
 class GenericMock(object):
     """
@@ -502,8 +502,6 @@ class TestToolbox(unittest.TestCase):
                 cb.checkButtonClicked(GenericMock())
 
                 self.assertEquals(ui.JOptionPane.showMessageDialog.call_count, 1)
-
-
 
 if __name__ == '__main__':
     unittest.main()

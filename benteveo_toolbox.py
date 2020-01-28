@@ -1,8 +1,8 @@
 from burp import IBurpExtender
-from implementations import Tab, HttpListener, MessageEditorController
+from implementations import Tab, HttpListener, MessageEditorController, ExtensionStateListener
+from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableModel
 from tables import Table
 from ui import ToolboxUI, STATUS_FAILED
-from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableModel
 
 class State(object):
     """
@@ -39,3 +39,4 @@ class BurpExtender(IBurpExtender):
         callbacks.addSuiteTab(Tab(splitpane))
         callbacks.registerHttpListener(HttpListener(state, callbacks))
         callbacks.setExtensionName("Benteveo Toolbox")
+        callbacks.registerExtensionStateListener(ExtensionStateListener(state));

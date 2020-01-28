@@ -1,34 +1,35 @@
-from javax.swing import JTable;
+from implementations import MessageEditorController, HttpService
+from java.awt import BorderLayout
+from java.awt import Color
+from java.awt import Component
+from java.awt import Dimension
+from java.awt import FlowLayout
+from java.awt import GridBagConstraints
+from java.awt import GridBagLayout
+from java.lang import Runnable
+from java.lang import String
+from java.lang import Thread
+from java.util.concurrent import Executors
+from javax.swing import BorderFactory
+from javax.swing import Box
+from javax.swing import BoxLayout
+from javax.swing import JButton
+from javax.swing import JComboBox
+from javax.swing import JLabel
+from javax.swing import JOptionPane
+from javax.swing import JPanel
 from javax.swing import JScrollPane
 from javax.swing import JSplitPane
 from javax.swing import JTabbedPane
-from javax.swing import SwingUtilities
-from javax.swing import BoxLayout
-from javax.swing import JPanel
-from javax.swing import JLabel
-from javax.swing import JButton
+from javax.swing import JTable;
 from javax.swing import JTextArea
 from javax.swing import JTextField
-from javax.swing import JComboBox
-from javax.swing import JOptionPane
-from javax.swing import Box
-from javax.swing import BorderFactory
-from java.awt import Color
-from java.awt import Dimension
-from java.awt import GridBagConstraints
-from java.awt import GridBagLayout
-from java.awt import BorderLayout
-from java.awt import FlowLayout
-from java.awt import Component
-from java.lang import String
-from java.lang import Runnable
-from java.lang import Thread
+from javax.swing import SwingUtilities
 from tables import Table
-from implementations import MessageEditorController, HttpService
-import jarray
-import re
 from utility import apply_rules, get_header, log
 from utility import REPLACE_HEADER_NAME, NoSuchHeaderException
+import jarray
+import re
 
 STATUS_OK = 0
 STATUS_FAILED = 1
@@ -315,6 +316,8 @@ class ToolboxCallbacks(NewThreadCaller):
         """
         self.state = state
         self.burpCallbacks = burpCallbacks
+        self.executorService = Executors.newFixedThreadPool(20)
+        self.state.executorService = self.executorService
 
     def refreshButtonClicked(self, event):
         """
