@@ -6,7 +6,7 @@ from java.awt import Component
 from benteveo_toolbox import BurpExtender
 from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableModel
 from models import EndpointModel, RequestModel, ReplacementRuleModel
-from ui import ToolboxCallbacks
+from ui import ToolboxCallbacks, STATUS_OK, STATUS_FAILED
 from java.net import URL
 from java.util import ArrayList
 from java.lang import String
@@ -215,7 +215,6 @@ class TestToolbox(unittest.TestCase):
 
     def testGenerateEndpointHash(self):
         etm, state, callbacks = self._cetm()
-
 
         mockRequestInfo = GenericMock()
         mockRequestInfo.method = "GET"
@@ -443,20 +442,22 @@ class TestToolbox(unittest.TestCase):
     def testCheckButtonPersistsState(self):
         cb, state, burpCallbacks = self._ctc()
 
-        with self.mockUtilityCalls():
+        with self.mockSwingClasses():
+            with self.mockUtilityCalls():
 
-            cb.checkButtonClicked(GenericMock())
+                cb.checkButtonClicked(GenericMock())
 
-            self.assertEquals(burpCallbacks.saveExtensionSetting.call_count, 1)
+                self.assertEquals(burpCallbacks.saveExtensionSetting.call_count, 1)
 
     def testCheckButtonBasicCalls(self):
 
-        with self.mockUtilityCalls():
-            cb, state, burpCallbacks = self._ctc()
-            cb.checkButtonClicked(GenericMock())
+        with self.mockSwingClasses():
+            with self.mockUtilityCalls():
+                cb, state, burpCallbacks = self._ctc()
+                cb.checkButtonClicked(GenericMock())
 
-            self.assertEquals(ui.apply_rules.call_count, 1)
-            self.assertEquals(ui.get_header.call_count, 1)
+                self.assertEquals(ui.apply_rules.call_count, 1)
+                self.assertEquals(ui.get_header.call_count, 1)
 
     def testGetHeader(self):
         testRequest = "whatever"
@@ -492,6 +493,17 @@ class TestToolbox(unittest.TestCase):
 
         self.assertEquals(modified, 1)
         self.assertTrue("X-test-header: newvalue" in newHeaders, "Should contain new replaced header.")
+
+    def testRunAllButtonInvalidState(self):
+        with self.mockSwingClasses():
+            with self.mockUtilityCalls():
+                cb, state, burpCallbacks = self._ctc()
+                state.status = STATUS_FAILED
+                cb.checkButtonClicked(GenericMock())
+
+                self.assertEquals(ui.JOptionPane.showMessageDialog.call_count, 1)
+
+
 
 if __name__ == '__main__':
     unittest.main()

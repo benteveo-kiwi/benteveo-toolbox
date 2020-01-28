@@ -30,6 +30,9 @@ import re
 from utility import apply_rules, get_header, log
 from utility import REPLACE_HEADER_NAME, NoSuchHeaderException
 
+STATUS_OK = 0
+STATUS_FAILED = 1
+
 class ToolboxUI():
 
     BUTTON_WIDTH = 140
@@ -157,8 +160,8 @@ class ToolboxUI():
         check.addActionListener(self.callbacks.checkButtonClicked)
         state.checkButton = check
 
-        run_all = self.getButton("Run ALL", 20, 90)
-        run_new = self.getButton("Run NEW", 20, 130)
+        runAll = self.getButton("Run ALL", 20, 90)
+        runAll.addActionListener(self.callbacks.runAllButtonClicked)
 
         textarea = self.getTextArea()
         state.sessionCheckTextarea = textarea.viewport.view
@@ -166,8 +169,7 @@ class ToolboxUI():
 
         rules.add(title)
         rules.add(check)
-        rules.add(run_all)
-        rules.add(run_new)
+        rules.add(runAll)
         rules.add(textarea)
 
         return rules
@@ -367,13 +369,22 @@ class ToolboxCallbacks(NewThreadCaller):
         result = JOptionPane.showConfirmDialog(None, panel, "Add Replacement Rule", JOptionPane.PLAIN_MESSAGE)
 
         if result == JOptionPane.OK_OPTION:
-            if search.text == "":
-                JOptionPane.showMessageDialog(None, "Invalid header name / search string")
+            if search.text.strip() == "":
+                self.messageDialog("Header name must be non-blank.")
                 raise InvalidInputException()
             else:
                 return type.selectedItem, search.text, replacement.text
         else:
             raise InvalidInputException()
+
+    def messageDialog(self, message):
+        """
+        Convenience function for displaying a message to the user.
+
+        Args:
+            message: message to display.
+        """
+        JOptionPane.showMessageDialog(None, message)
 
     def addButtonClicked(self, event):
         """
@@ -427,7 +438,7 @@ class ToolboxCallbacks(NewThreadCaller):
         try:
             hostHeader = get_header(self.burpCallbacks, baseRequest, "host")
         except NoSuchHeaderException:
-            log("Check request failed: no Host header present in session check request.")
+            self.messageDialog("Check request failed: no Host header present in session check request.")
             self.checkButtonSetFail()
             return
 
@@ -439,19 +450,25 @@ class ToolboxCallbacks(NewThreadCaller):
             analyzedResponse = self.burpCallbacks.helpers.analyzeResponse(response.response)
 
             if analyzedResponse.statusCode == 200:
-                self.state.checkButton.setBackground(Color(107,255,127))
-                self.state.checkButton.setOpaque(True)
                 self.state.checkButton.setText("Check: OK")
+                self.state.status = STATUS_OK
             else:
-                log("Check request failed: response not 200 OK, was %s." % str(analyzedResponse.statusCode))
+                self.messageDialog("Check request failed: response was not 200 OK, was '%s'." % str(analyzedResponse.statusCode))
                 self.checkButtonSetFail()
         else:
-            log("Check request not issued because no modifications to it were made based on the rules provided by user.")
+            self.messageDialog("Check request not issued because no modifications to it were made based on the rules provided by user.")
             self.checkButtonSetFail()
 
     def checkButtonSetFail(self):
         """
-        Convenience function to make the check button red.
+        Convenience function to make the check button failed.
         """
-        self.state.checkButton.setBackground(Color(255,202,128))
-        self.state.checkButton.setText("Check: FAIL")
+        self.state.checkButton.setText("Check: FAILED")
+        self.state.status = STATUS_FAILED
+
+    def runAllButtonClicked(self, event):
+        """
+        Gets called when the user calls runAll.
+        """
+        if self.state.status == STATUS_FAILED:
+            self.messageDialog("Confirm status check button says OK.")
