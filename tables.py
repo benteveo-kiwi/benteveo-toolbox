@@ -294,7 +294,7 @@ class RequestTableModel(AbstractTableModel):
                 return ""
         elif columnIndex == 2:
             if request.repeatedAnalyzedRequest:
-                return request.repeatedAnalyzedRequest.status
+                return request.repeatedAnalyzedRequest.statusCode
             else:
                 return ""
         elif columnIndex == 3:

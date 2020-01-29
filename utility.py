@@ -111,4 +111,4 @@ def log(message):
     Args:
         Message to print.
     """
-    print(message)
+    print message +"\n",

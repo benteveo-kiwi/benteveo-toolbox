@@ -259,7 +259,7 @@ class PythonFunctionRunnable(Runnable):
     """
     def __init__(self, method, args=[], kwargs={}):
         """
-        Stores this variables for when the run() method is called.
+        Stores these variables for when the run() method is called.
 
         Args:
             method: the method to call
@@ -283,7 +283,7 @@ class PythonFunctionRunnable(Runnable):
 
 class NewThreadCaller(object):
     """
-    Superclass of callbacks that ensures callbacks are run on their own thread.
+    Superclass of callbacks that ensures callbacks are run on their own thread. Only methods that have "Clicked" at the end are affected by this.
 
     This is because Swing callbacks are made on the main UI thread, which results in complex computations causing a hang on the UI. Instead of adding something on each callback, this object handles this in a generic way for all methods.
     """
@@ -304,7 +304,7 @@ class NewThreadCaller(object):
         if utility.INSIDE_UNIT_TEST:
             return attr
 
-        if hasattr(attr, '__call__'):
+        if hasattr(attr, '__call__') and name.endswith("Clicked"):
             def newfunc(*args, **kwargs):
                 runnable = PythonFunctionRunnable(attr, args, kwargs)
                 Thread(runnable).start()
@@ -318,7 +318,7 @@ class ToolboxCallbacks(NewThreadCaller):
     """
     def __init__(self, state, burpCallbacks):
         """
-        Main constructor. Creates an instance of a FixedThreadPool for threading operations, such as issuing multiple HTTP requests. All calls to this class are made to an independent thread to avoid locking up the Burp UI.
+        Main constructor. Creates an instance of a FixedThreadPool for threading operations, such as issuing multiple HTTP requests. All calls to this class to methods that end in "Clicked" are made in an independent thread to avoid locking up the Burp UI.
 
         Args:
             state: the state object.
