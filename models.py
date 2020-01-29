@@ -33,14 +33,27 @@ class EndpointModel(object):
         """
         Computates the number of requests that have the same status. This is done by iterating through the requests made to this endpoint and comparing the statusCode of the original response versus the new response.
         """
-        return 0
+        nb = 0
+        for request in self.requests:
+            if request.repeatedAnalyzedResponse:
+                if request.repeatedAnalyzedResponse.statusCode == request.analyzedResponse:
+                    nb += 1
+
+        return nb
+
 
     @property
     def nb_same_len(self):
         """
         Computates the number of requests that have the same length. This is done by iterating through the requests made to this endpoint and comparing the length of the original response versus the new response.
         """
-        return 0
+        nb = 0
+        for request in self.requests:
+            if request.repeatedHttpRequestResponse:
+                if len(request.repeatedHttpRequestResponse.response) == len(request.httpRequestResponse.response):
+                    nb += 1
+
+        return nb
 
 class RequestModel(object):
     """
@@ -63,7 +76,7 @@ class RequestModel(object):
         self._analyzedResponse = None
 
         self.repeatedHttpRequestResponse = None
-        self.repeatedAnalyzedRequest = None
+        self.repeatedAnalyzedResponse = None
 
         self.repeated = False
 

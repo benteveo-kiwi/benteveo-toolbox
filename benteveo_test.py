@@ -100,7 +100,7 @@ class TestToolbox(unittest.TestCase):
     @contextlib.contextmanager
     def mockSwingClasses(_):
         """
-        Mocks JOptionPane so that a pop-up window does not appear during test runs.
+        Mocks JOptionPane so that a pop-up window does not appear during test runs.  Note that it only gets mocked in the "ui.py" file.
 
         The annotation makes it compatible with the `with` statement. See https://stackoverflow.com/a/3774934 for more info.
         """
@@ -122,19 +122,23 @@ class TestToolbox(unittest.TestCase):
     @contextlib.contextmanager
     def mockUtilityCalls(_):
         """
-        Mocks calls to the utility module for ease of testability.
+        Mocks calls to the utility module for ease of testability. Note that it only gets mocked in the "ui.py" file.
         """
         apply_rules = ui.apply_rules
         get_header = ui.get_header
+        log = ui.log
 
         ui.apply_rules = GenericMock()
-        ui.apply_rules.return_value = (False, None)
         ui.get_header = GenericMock()
+        ui.log = GenericMock()
+
+        ui.apply_rules.return_value = (False, None)
 
         yield
 
         ui.apply_rules = apply_rules
         ui.get_header = get_header
+        ui.log = log
 
     def _cem(self, method, url, dict=None):
         """
@@ -370,6 +374,9 @@ class TestToolbox(unittest.TestCase):
         dict = self._cem("GET", "http://www.example.org/users?userId=300", dict)
         rtm.requests = dict["GET|http://www.example.org/users"].requests
 
+        rtm.requests[1].repeatedHttpRequestResponse = GenericMock()
+        rtm.requests[1].repeatedAnalyzedResponse = GenericMock()
+
         self.assertEquals(rtm.getValueAt(0, 0), "/users")
         self.assertEquals(rtm.getValueAt(0, 1), 200)
         self.assertEquals(rtm.getValueAt(0, 2), "")
@@ -378,6 +385,9 @@ class TestToolbox(unittest.TestCase):
         self.assertEquals(rtm.getValueAt(0, 4), "")
 
         self.assertEquals(rtm.getValueAt(1, 0), "/users?userId=300")
+        self.assertEquals(rtm.getValueAt(1, 2), rtm.requests[1].repeatedAnalyzedResponse.statusCode)
+        self.assertEquals(rtm.getValueAt(1, 4), 1337)
+        self.assertEquals(rtm.getValueAt(1, 5), 0)
 
     def testRequestsTableModelSelectRow(self):
         rtm, state, callback = self._crtm()
@@ -549,6 +559,20 @@ class TestToolbox(unittest.TestCase):
             self.assertEquals(burpCallbacks.makeHttpRequest.call_count, 1)
             self.assertEquals(state.endpointTableModel.update.call_count, 1)
 
+    def testResendRequestModelLogoutURL(self):
+        with self.mockUtilityCalls():
+            cb, state, burpCallbacks = self._ctc()
+
+            request = GenericMock()
+            request.analyzedRequest.url.path = "/logout"
+
+            cb.resendRequestModel(request)
+
+            self.assertEquals(burpCallbacks.makeHttpRequest.call_count, 0)
+            self.assertEquals(state.endpointTableModel.update.call_count, 0)
+            self.assertEquals(ui.log.call_count, 1)
+
+
     def testEndpointTableModelUpdate(self):
         etm, state, callbacks, endpointModel = self._cetm_populate()
 
@@ -558,7 +582,7 @@ class TestToolbox(unittest.TestCase):
 
         self.assertEquals(requestModel.repeatedHttpRequestResponse, newResponse)
         self.assertEquals(requestModel.repeated, True)
-        self.assertEquals(requestModel.repeatedAnalyzedRequest, callbacks.helpers.analyzeResponse.return_value)
+        self.assertEquals(requestModel.repeatedAnalyzedResponse, callbacks.helpers.analyzeResponse.return_value)
 
 
 if __name__ == '__main__':

@@ -223,7 +223,7 @@ class EndpointTableModel(AbstractTableModel):
         """
         with self.lock:
             requestModel.repeatedHttpRequestResponse = httpRequestResponse
-            requestModel.repeatedAnalyzedRequest = self.callbacks.helpers.analyzeResponse(httpRequestResponse.response)
+            requestModel.repeatedAnalyzedResponse = self.callbacks.helpers.analyzeResponse(httpRequestResponse.response)
             requestModel.repeated = True
 
 class RequestTableModel(AbstractTableModel):
@@ -293,8 +293,8 @@ class RequestTableModel(AbstractTableModel):
             else:
                 return ""
         elif columnIndex == 2:
-            if request.repeatedAnalyzedRequest:
-                return request.repeatedAnalyzedRequest.statusCode
+            if request.repeatedAnalyzedResponse:
+                return request.repeatedAnalyzedResponse.statusCode
             else:
                 return ""
         elif columnIndex == 3:
@@ -303,12 +303,15 @@ class RequestTableModel(AbstractTableModel):
             else:
                 return ""
         elif columnIndex == 4:
-            if request.repeatedAnalyzedRequest:
+            if request.repeatedAnalyzedResponse:
                 return len(request.repeatedHttpRequestResponse.response)
             else:
                 return ""
         elif columnIndex == 5:
-            return ""
+            if request.repeatedAnalyzedResponse:
+                return abs(len(request.httpRequestResponse.response) - len(request.repeatedHttpRequestResponse.response))
+            else:
+                return ""
 
     def updateRequests(self, requests):
         """
