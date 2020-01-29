@@ -518,6 +518,12 @@ class ToolboxCallbacks(NewThreadCaller):
             request: the RequestModel to resend.
         """
         target = request.httpRequestResponse.httpService
+
+        path = request.analyzedRequest.url.path
+        if "logout" in path:
+            log("Ignoring request to %s to avoid invalidating the session." % path)
+            return
+
         nbModified, modifiedRequest = apply_rules(self.burpCallbacks,
                                                 self.state.replacementRuleTableModel.rules,
                                                 request.httpRequestResponse.request)

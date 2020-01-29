@@ -304,7 +304,7 @@ class RequestTableModel(AbstractTableModel):
                 return ""
         elif columnIndex == 4:
             if request.repeatedAnalyzedRequest:
-                return len(request.repeaterhttpRequestResponse.response)
+                return len(request.repeatedHttpRequestResponse.response)
             else:
                 return ""
         elif columnIndex == 5:
