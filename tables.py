@@ -1,11 +1,14 @@
+from collections import OrderedDict
+from java.lang import Class
+from java.lang import String
+from java.lang import Integer
 from javax.swing import JTable
 from javax.swing.table import AbstractTableModel
-from java.lang import Class
-from collections import OrderedDict
 from models import EndpointModel, RequestModel, ReplacementRuleModel
 from threading import Lock
 import json
 import re
+import sys
 
 class Table(JTable):
     """
@@ -30,8 +33,14 @@ class Table(JTable):
             toggle: whether to toggle the selection upon this click.
             extend: whether to extend the selection and have two or more rows selected.
         """
-        self.model.selectRow(self.convertRowIndexToModel(row))
         JTable.changeSelection(self, row, col, toggle, extend)
+
+        try:
+            self.model.selectRow(self.convertRowIndexToModel(row))
+        except:
+            print "Exception in selectRow:"
+            print sys.exc_info()
+            raise
 
 class EndpointTableModel(AbstractTableModel):
     """
@@ -40,7 +49,7 @@ class EndpointTableModel(AbstractTableModel):
     Also keeps in the endpoints attribute a list of all known endpoints.
     """
 
-    cols = ["Method", "URL", "#", "Same Status", "Same Len"]
+    cols = ["Method", "URL", "#", "% Same Status", "% Same Len"]
     regex = [
         re.compile("[a-f0-9]{64}"), # 748bbea58bb5db34e95d02edb2935c0f25cb1593e5ab837767e260a349c02ca7
     ]
@@ -138,7 +147,7 @@ class EndpointTableModel(AbstractTableModel):
         This is called by a click on the "refresh" button, which fetches requests from previous requests. We ignore requests without responses and OPTIONS requests as these don't tend to have IDOR.
 
         Args:
-        httpRequestResponse: an HttpRequestResponse java object as returned by burp.
+            httpRequestResponse: an HttpRequestResponse java object as returned by burp.
         """
 
         with self.lock:
@@ -205,9 +214,9 @@ class EndpointTableModel(AbstractTableModel):
         elif columnIndex == 2:
             return len(endpointModel.requests)
         elif columnIndex == 3:
-            return endpointModel.nb_same_status
+            return endpointModel.percent_same_status
         elif columnIndex == 4:
-            return endpointModel.nb_same_len
+            return endpointModel.percent_same_len
 
     def update(self, requestModel, httpRequestResponse):
         """
@@ -225,6 +234,20 @@ class EndpointTableModel(AbstractTableModel):
             requestModel.repeatedHttpRequestResponse = httpRequestResponse
             requestModel.repeatedAnalyzedResponse = self.callbacks.helpers.analyzeResponse(httpRequestResponse.response)
             requestModel.repeated = True
+
+            self.fireTableDataChanged()
+
+    def getColumnClass(self, columnIndex):
+        """
+        Get column class. Gets called by swing to determine sorting.
+        """
+        if columnIndex in [3, 4]:
+            return Integer(0).class
+        else:
+            return String("").class
+   #  public Class getColumnClass(int c) {
+   # return getValueAt(0, c).getClass();
+# }
 
 class RequestTableModel(AbstractTableModel):
     """
@@ -329,16 +352,26 @@ class RequestTableModel(AbstractTableModel):
 
     def selectRow(self, rowIndex):
         """
-        Gets called when a hacker clicks on a request in the rightmost panel.
+        Gets called when a hacker clicks on a request in the top-right panel on the results page.
 
         Args:
             rowIndex: the row number that was clicked.
         """
         request = self.requests[rowIndex]
 
-        self.state.requestViewer.setMessage(request.httpRequestResponse.request, False)
-        self.state.responseViewer.setMessage(request.httpRequestResponse.response, False)
-        self.state.currentlyDisplayedItem = request.httpRequestResponse
+        self.state.originalRequestViewer.setMessage(request.httpRequestResponse.request, False)
+        self.state.originalResponseViewer.setMessage(request.httpRequestResponse.response, False)
+        self.state.originalHttpRequestResponse = request.httpRequestResponse
+
+        if request.repeatedHttpRequestResponse:
+            self.state.repeatedRequestViewer.setMessage(request.repeatedHttpRequestResponse.request, False)
+            self.state.repeatedResponseViewer.setMessage(request.repeatedHttpRequestResponse.response, False)
+            self.state.repeatedHttpRequestResponse = request.httpRequestResponse
+        else:
+            self.state.repeatedRequestViewer.setMessage(String("").getBytes(), False)
+            self.state.repeatedResponseViewer.setMessage(String("").getBytes(), False)
+            self.state.repeatedHttpRequestResponse = None
+
 
 class ReplacementRuleTableModel(AbstractTableModel):
 

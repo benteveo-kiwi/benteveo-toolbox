@@ -28,10 +28,11 @@ from javax.swing import SwingUtilities
 from tables import Table
 from utility import apply_rules, get_header, log
 from utility import REPLACE_HEADER_NAME, NoSuchHeaderException
-import utility
 import jarray
 import re
+import sys
 import traceback
+import utility
 
 STATUS_OK = 0
 STATUS_FAILED = 1
@@ -61,7 +62,6 @@ class ToolboxUI():
 
         tabs.addTab("Results", resultsPane)
         tabs.addTab("Config", configPane)
-
 
         return tabs
 
@@ -243,13 +243,37 @@ class ToolboxUI():
     def buildMessageViewer(self, state, callbacks):
         """
         Builds the panel that allows users to view requests on the results page.
+
+        Args:
+            state: the state object.
+            callbacks: the burp callbacks object.
         """
+
         tabs = JTabbedPane()
-        messageEditor = MessageEditorController(state)
-        state.requestViewer = callbacks.createMessageEditor(messageEditor, False)
-        state.responseViewer = callbacks.createMessageEditor(messageEditor, False)
-        tabs.addTab("Request", state.requestViewer.getComponent())
-        tabs.addTab("Response", state.responseViewer.getComponent())
+
+        original = JSplitPane()
+        original.setDividerLocation(1000)
+
+        modified = JSplitPane()
+        modified.setDividerLocation(1000)
+
+        originalRequestEditor = MessageEditorController(state, "original")
+        repeatedRequestEditor = MessageEditorController(state, "repeated")
+
+        state.originalRequestViewer = callbacks.createMessageEditor(originalRequestEditor, False)
+        state.originalResponseViewer = callbacks.createMessageEditor(originalRequestEditor, False)
+
+        state.repeatedRequestViewer = callbacks.createMessageEditor(repeatedRequestEditor, False)
+        state.repeatedResponseViewer = callbacks.createMessageEditor(repeatedRequestEditor, False)
+
+        original.setLeftComponent(state.originalRequestViewer.getComponent())
+        original.setRightComponent(state.originalResponseViewer.getComponent())
+
+        modified.setLeftComponent(state.repeatedRequestViewer.getComponent())
+        modified.setRightComponent(state.repeatedResponseViewer.getComponent())
+
+        tabs.addTab("Original", original)
+        tabs.addTab("Modified", modified)
 
         return tabs
 
@@ -278,7 +302,7 @@ class PythonFunctionRunnable(Runnable):
             self.method(*self.args, **self.kwargs)
         except:
             print "Exception in thread:"
-            print traceback.print_exc()
+            print sys.exc_info()
             raise
 
 class NewThreadCaller(object):

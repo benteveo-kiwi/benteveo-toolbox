@@ -45,34 +45,48 @@ class HttpListener(IHttpListener):
 
 class MessageEditorController(IMessageEditorController):
     """
-    This class is in charge of displaying message editors, used to view request details on the results panel.
+    This class is in charge of returning information regarding the currently displayed request for sending to other tools.
     """
-    def __init__(self, state):
+    def __init__(self, state, kind):
         """
         Main constructor.
 
         Args:
             state: the state object.
+            kind: "original" or "repeated"
         """
         self.state = state
+        self.kind = kind
 
     def getHttpService(self):
         """
         Getter for the httpService object.
         """
-        return self.state.currentlyDisplayedItem.getHttpService()
+        if self.kind == "original":
+            return self.state.originalHttpRequestResponse.getHttpService()
+        else:
+            if self.state.repeatedHttpRequestResponse:
+                return self.state.repeatedHttpRequestResponse.getHttpService()
 
     def getRequest(self):
         """
         Getter for the request object.
         """
-        return self.state.currentlyDisplayedItem.getRequest()
+        if self.kind == "original":
+            return self.state.originalHttpRequestResponse.getRequest()
+        else:
+            if self.state.repeatedHttpRequestResponse:
+                return self.state.repeatedHttpRequestResponse.getRequest()
 
     def getResponse(self):
         """
         Getter for the response object.
         """
-        return self.state.currentlyDisplayedItem.getResponse()
+        if self.kind == "original":
+            return self.state.originalHttpRequestResponse.getResponse()
+        else:
+            if self.state.repeatedHttpRequestResponse:
+                return self.state.repeatedHttpRequestResponse.getResponse()
 
 class HttpService(IHttpService):
     """

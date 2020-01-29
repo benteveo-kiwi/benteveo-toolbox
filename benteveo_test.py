@@ -398,9 +398,10 @@ class TestToolbox(unittest.TestCase):
 
         rtm.selectRow(0)
 
-        self.assertEquals(state.requestViewer.setMessage.call_count, 1)
-        self.assertEquals(state.responseViewer.setMessage.call_count, 1)
-        self.assertEquals(state.currentlyDisplayedItem, rtm.requests[0].httpRequestResponse)
+        self.assertEquals(state.originalRequestViewer.setMessage.call_count, 1)
+        self.assertEquals(state.originalResponseViewer.setMessage.call_count, 1)
+        self.assertEquals(state.originalHttpRequestResponse, rtm.requests[0].httpRequestResponse)
+        self.assertEquals(state.repeatedHttpRequestResponse, rtm.requests[0].repeatedHttpRequestResponse)
 
     def testReplacementRules(self):
         rrtm = self._crrtm()
@@ -572,7 +573,6 @@ class TestToolbox(unittest.TestCase):
             self.assertEquals(state.endpointTableModel.update.call_count, 0)
             self.assertEquals(ui.log.call_count, 1)
 
-
     def testEndpointTableModelUpdate(self):
         etm, state, callbacks, endpointModel = self._cetm_populate()
 
@@ -583,6 +583,27 @@ class TestToolbox(unittest.TestCase):
         self.assertEquals(requestModel.repeatedHttpRequestResponse, newResponse)
         self.assertEquals(requestModel.repeated, True)
         self.assertEquals(requestModel.repeatedAnalyzedResponse, callbacks.helpers.analyzeResponse.return_value)
+
+    def testSameStatusPercentage(self):
+        em = EndpointModel("GET", "/lol")
+
+        requestA = GenericMock()
+        requestB = GenericMock()
+
+        em.requests = [requestA, requestB]
+
+        requestA.repeatedAnalyzedResponse.statusCode = 200
+        requestA.analyzedResponse.statusCode = 200
+
+        requestB.repeatedAnalyzedResponse.statusCode = 200
+        requestB.analyzedResponse.statusCode = 403
+
+        self.assertEquals(em.percent_same_status, 50)
+
+        requestB.repeatedAnalyzedResponse.statusCode = 200
+        requestB.analyzedResponse.statusCode = 200
+
+        self.assertEquals(em.percent_same_status, 100)
 
 
 if __name__ == '__main__':

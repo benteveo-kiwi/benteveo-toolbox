@@ -29,21 +29,24 @@ class EndpointModel(object):
         self.requests.append(requestModel)
 
     @property
-    def nb_same_status(self):
+    def percent_same_status(self):
         """
         Computates the number of requests that have the same status. This is done by iterating through the requests made to this endpoint and comparing the statusCode of the original response versus the new response.
         """
         nb = 0
         for request in self.requests:
             if request.repeatedAnalyzedResponse:
-                if request.repeatedAnalyzedResponse.statusCode == request.analyzedResponse:
+                if request.repeatedAnalyzedResponse.statusCode == request.analyzedResponse.statusCode:
                     nb += 1
 
-        return nb
+        total_requests = len(self.requests)
 
+        percentage = round((nb * 100) / total_requests)
+
+        return percentage
 
     @property
-    def nb_same_len(self):
+    def percent_same_len(self):
         """
         Computates the number of requests that have the same length. This is done by iterating through the requests made to this endpoint and comparing the length of the original response versus the new response.
         """
@@ -53,7 +56,10 @@ class EndpointModel(object):
                 if len(request.repeatedHttpRequestResponse.response) == len(request.httpRequestResponse.response):
                     nb += 1
 
-        return nb
+        total_requests = len(self.requests)
+        percentage = round((nb * 100) / total_requests)
+
+        return percentage
 
 class RequestModel(object):
     """
