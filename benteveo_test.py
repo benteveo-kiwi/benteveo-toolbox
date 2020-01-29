@@ -543,6 +543,8 @@ class TestToolbox(unittest.TestCase):
             self.assertEquals(burpCallbacks.makeHttpRequest.call_count, 1)
             self.assertEquals(state.endpointTableModel.update.call_count, 1)
 
+    def testEndpointTableModelUpdate(self):
+        self.assertTrue(False)
 
 if __name__ == '__main__':
     unittest.main()

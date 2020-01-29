@@ -205,10 +205,8 @@ class EndpointTableModel(AbstractTableModel):
         elif columnIndex == 2:
             return len(endpointModel.requests)
         elif columnIndex == 3:
-            return
             return endpointModel.nb_same_status
         elif columnIndex == 4:
-            return
             return endpointModel.nb_same_len
 
     def update(self, endpointModel, requestModel, newHttpResponse):

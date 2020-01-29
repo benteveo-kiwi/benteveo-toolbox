@@ -30,6 +30,20 @@ class EndpointModel(object):
         self.nb += 1
         self.requests.append(requestModel)
 
+    @property
+    def nb_same_status(self):
+        """
+        Computates the number of requests that have the same status. This is done by iterating through the requests made to this endpoint and comparing the statusCode of the original response versus the new response.
+        """
+        return 0
+
+    @property
+    def nb_same_len(self):
+        """
+        Computates the number of requests that have the same length. This is done by iterating through the requests made to this endpoint and comparing the length of the original response versus the new response.
+        """
+        return 0
+
 class RequestModel(object):
     """
     Model that represents requests on the right panel on the results page.
