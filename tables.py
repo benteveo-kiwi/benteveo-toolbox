@@ -52,6 +52,8 @@ class EndpointTableModel(AbstractTableModel):
     cols = ["Method", "URL", "#", "% Same Status", "% Same Len"]
     regex = [
         re.compile("[a-f0-9]{64}"), # 748bbea58bb5db34e95d02edb2935c0f25cb1593e5ab837767e260a349c02ca7
+        re.compile("[0-9]{13}-[a-f0-9]{64}"), # 1579636429347-c568eba49ad17ef37b9db4ea42466b71e065481ddbc2f5a63503719c44dfb6ee
+        re.compile("S-1.*"), # S-1-5-21-2931253742-2981233768-3707659581-1108%26d-90670d8a68
     ]
 
     def __init__(self, state, callbacks):
@@ -241,7 +243,7 @@ class EndpointTableModel(AbstractTableModel):
         """
         Get column class. Gets called by swing to determine sorting.
         """
-        if columnIndex in [3, 4]:
+        if columnIndex in [2, 3, 4]:
             return Integer(0).class
         else:
             return String("").class
