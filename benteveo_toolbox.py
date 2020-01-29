@@ -3,6 +3,9 @@ from implementations import Tab, HttpListener, MessageEditorController, Extensio
 from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableModel
 from tables import Table
 from ui import ToolboxUI, STATUS_FAILED
+import utility
+
+utility.INSIDE_UNIT_TEST = False
 
 class State(object):
     """
@@ -13,8 +16,6 @@ class State(object):
         self.status = STATUS_FAILED
 
 class BurpExtender(IBurpExtender):
-
-    state = None
 
     def	registerExtenderCallbacks(self, callbacks):
         """

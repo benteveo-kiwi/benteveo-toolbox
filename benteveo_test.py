@@ -14,6 +14,8 @@ import ui
 import unittest
 import utility
 
+utility.INSIDE_UNIT_TEST = True
+
 class GenericMock(object):
     """
     A generic mocking class that accepts calls to any method without crashing.
@@ -85,7 +87,11 @@ class GenericMock(object):
         yield GenericMock()
         yield GenericMock()
 
-
+    def __getitem__(self, item):
+        """
+        Makes object subscriptable, e.g. genericMockInstance['test']
+        """
+        return GenericMock()
 
 class TestToolbox(unittest.TestCase):
     """
@@ -196,7 +202,6 @@ class TestToolbox(unittest.TestCase):
         burpCallbacks.helpers.analyzeRequest.return_value.headers = request
 
         cb = ToolboxCallbacks(state, burpCallbacks)
-        cb.insideAUnitTest = True
 
         return cb, state, burpCallbacks
 
@@ -499,9 +504,45 @@ class TestToolbox(unittest.TestCase):
             with self.mockUtilityCalls():
                 cb, state, burpCallbacks = self._ctc()
                 state.status = STATUS_FAILED
-                cb.checkButtonClicked(GenericMock())
+                cb.runAllButtonClicked(GenericMock())
 
                 self.assertEquals(ui.JOptionPane.showMessageDialog.call_count, 1)
+
+    def testRunAllButtonValidState(self):
+        with self.mockSwingClasses():
+            with self.mockUtilityCalls():
+                cb, state, burpCallbacks = self._ctc()
+                state.status = STATUS_OK
+
+                etm, _, _ = self._cetm()
+                state.endpointTableModel = etm
+                dict = self._cem("GET", "http://www.example.org/users")
+                dict = self._cem("GET", "http://www.example.org/users", dict)
+                etm.endpoints = dict
+
+                cb.runAllButtonClicked(GenericMock())
+
+                self.assertEquals(state.executorService.submit.call_count, 2)
+
+    def testResendRequestModel(self):
+        cb, state, burpCallbacks = self._ctc()
+
+        with self.mockUtilityCalls():
+            etm, _, _ = self._cetm()
+            state.endpointTableModel = etm
+            state.endpointTableModel.update = GenericMock()
+            ui.apply_rules.return_value = (1, bytearray("lel"))
+
+            dict = self._cem("GET", "http://www.example.org/users")
+            dict = self._cem("GET", "http://www.example.org/users", dict)
+            etm.endpoints = dict
+
+            endpointModel = etm.endpoints["GET|http://www.example.org/users"]
+            cb.resendRequestModel(endpointModel, endpointModel.requests[0])
+
+            self.assertEquals(burpCallbacks.makeHttpRequest.call_count, 1)
+            self.assertEquals(state.endpointTableModel.update.call_count, 1)
+
 
 if __name__ == '__main__':
     unittest.main()

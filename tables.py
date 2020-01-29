@@ -205,9 +205,25 @@ class EndpointTableModel(AbstractTableModel):
         elif columnIndex == 2:
             return len(endpointModel.requests)
         elif columnIndex == 3:
+            return
             return endpointModel.nb_same_status
         elif columnIndex == 4:
+            return
             return endpointModel.nb_same_len
+
+    def update(self, endpointModel, requestModel, newHttpResponse):
+        """
+        Allows for new data to be stored regarding our already stored requests.
+
+        In particular, this method is called when requests are repeated, and new information is stored regarding those responses, such as the status code or the response length. It is safe to call this method from multiple threads because it implements a lock.
+
+        Args:
+            endpointModel: the EndpointModel to be modified.
+            requestModel: the RequestModel that was modified.
+            httpRequestResponse: the HttpRequestResponse object returned by performing the new request.
+        """
+        with self.lock:
+            pass
 
 class RequestTableModel(AbstractTableModel):
     """

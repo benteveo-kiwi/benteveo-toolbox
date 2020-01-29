@@ -28,11 +28,19 @@ from javax.swing import SwingUtilities
 from tables import Table
 from utility import apply_rules, get_header, log
 from utility import REPLACE_HEADER_NAME, NoSuchHeaderException
+import utility
 import jarray
 import re
+import traceback
 
 STATUS_OK = 0
 STATUS_FAILED = 1
+
+class InvalidInputException(Exception):
+    """
+    Raised when a user inputs something invalid into a form.
+    """
+    pass
 
 class ToolboxUI():
 
@@ -245,14 +253,11 @@ class ToolboxUI():
 
         return tabs
 
-class InvalidInputException(Exception):
-    pass
-
 class PythonFunctionRunnable(Runnable):
     """
     A python implementation of Runnable.
     """
-    def __init__(self, method, args, kwargs):
+    def __init__(self, method, args=[], kwargs={}):
         """
         Stores this variables for when the run() method is called.
 
@@ -269,7 +274,12 @@ class PythonFunctionRunnable(Runnable):
         """
         Method that gets called by the new thread.
         """
-        self.method(*self.args, **self.kwargs)
+        try:
+            self.method(*self.args, **self.kwargs)
+        except:
+            print "Exception in thread:"
+            print traceback.print_exc()
+            raise
 
 class NewThreadCaller(object):
     """
@@ -291,7 +301,7 @@ class NewThreadCaller(object):
         """
         attr = object.__getattribute__(self, name)
 
-        if object.__getattribute__(self, 'insideAUnitTest'):
+        if utility.INSIDE_UNIT_TEST:
             return attr
 
         if hasattr(attr, '__call__'):
@@ -304,11 +314,11 @@ class NewThreadCaller(object):
 
 class ToolboxCallbacks(NewThreadCaller):
     """
-    Handles all callbacks for Swing objects.
+    Handles all callbacks.
     """
     def __init__(self, state, burpCallbacks):
         """
-        Main constructor.
+        Main constructor. Creates an instance of a FixedThreadPool for threading operations, such as issuing multiple HTTP requests. All calls to this class are made to an independent thread to avoid locking up the Burp UI.
 
         Args:
             state: the state object.
@@ -316,8 +326,10 @@ class ToolboxCallbacks(NewThreadCaller):
         """
         self.state = state
         self.burpCallbacks = burpCallbacks
-        self.executorService = Executors.newFixedThreadPool(20)
-        self.state.executorService = self.executorService
+
+        # Avoid instantiating during unit test as it is not needed.
+        if not utility.INSIDE_UNIT_TEST:
+            self.state.executorService = Executors.newFixedThreadPool(20)
 
     def refreshButtonClicked(self, event):
         """
@@ -341,6 +353,14 @@ class ToolboxCallbacks(NewThreadCaller):
     def buildAddEditPrompt(self, typeValue=None, searchValue=None, replacementValue=None):
         """
         Builds the replacement rules add/edit prompt.
+
+        Args:
+            typeValue: the value that will be set on the type JLabel.
+            searchValue: the value that will be set on the search JLabel.
+            replacementValue: the value that will be set on the replacement JLabel.
+
+        Return:
+            tuple: (type, search, replacement) as input by user.
         """
         panel = Box.createVerticalBox()
 
@@ -471,7 +491,39 @@ class ToolboxCallbacks(NewThreadCaller):
 
     def runAllButtonClicked(self, event):
         """
-        Gets called when the user calls runAll.
+        Gets called when the user calls runAll. This initiates the main IDOR checking.
+
+        Args:
+            event: the event as passed by Swing.
         """
         if self.state.status == STATUS_FAILED:
             self.messageDialog("Confirm status check button says OK.")
+
+        endpoints = self.state.endpointTableModel.endpoints
+
+        for key in endpoints:
+            endpoint = endpoints[key]
+            for request in endpoint.requests:
+                runnable = PythonFunctionRunnable(self.resendRequestModel, args=[endpoint, request])
+                self.state.executorService.submit(runnable)
+
+    def resendRequestModel(self, endpoint, request):
+        """
+        Resends a request model and performs basic analysis on whether it responds with the same state and status code.
+
+        This method gets called from each thread. Operations on the global state need to be thread-safe.
+
+        Args:
+            endpoint: the EndpointModel this request corresponds to.
+            request: the RequestModel to resend.
+        """
+        target = request.httpRequestResponse.httpService
+        nbModified, modifiedRequest = apply_rules(self.burpCallbacks,
+                                                self.state.replacementRuleTableModel.rules,
+                                                request.httpRequestResponse.request)
+
+        if nbModified > 0:
+            newResponse = self.burpCallbacks.makeHttpRequest(target, modifiedRequest)
+            self.state.endpointTableModel.update(endpoint, request, newResponse)
+        else:
+            log("Request was not modified so was not resent.")

@@ -1,13 +1,32 @@
+import uuid
+
 class EndpointModel(object):
+    """
+    This endpoint represents a group of requests that are all sent to the same URL, or roughly the same URL. The idea is to aggregate all endpoints that refer on the backend to the same code path.
+    """
+
     def __init__(self, method, url):
+        """
+        Main constructor method.
+
+        Args:
+            method: the HTTP method for this endpoint.
+            url: the normalized url for this endpoint. See `EndpointTableModel.generateEndpointHash()`
+        """
+
+        self.uuid = uuid.uuid4()
         self.method = method
         self.url = url
         self.nb = 0
-        self.nb_same_status = 0
-        self.nb_same_len = 0
         self.requests = []
 
     def add(self, requestModel):
+        """
+        Adds a request that corresponds to this endpoint as per our normalization strategies.
+
+        Args:
+            requestModel: a RequestModel object.
+        """
         self.nb += 1
         self.requests.append(requestModel)
 
@@ -25,6 +44,7 @@ class RequestModel(object):
         httpRequestResponse: a httpRequestResponse as returned by burp apis.
         callbacks: burp callbacks object.
         """
+        self.uuid = uuid.uuid4()
         self.httpRequestResponse = httpRequestResponse
         self.callbacks = callbacks
 
