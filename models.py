@@ -1,4 +1,3 @@
-import uuid
 
 class EndpointModel(object):
     """
@@ -14,7 +13,6 @@ class EndpointModel(object):
             url: the normalized url for this endpoint. See `EndpointTableModel.generateEndpointHash()`
         """
 
-        self.uuid = uuid.uuid4()
         self.method = method
         self.url = url
         self.nb = 0
@@ -58,10 +56,9 @@ class RequestModel(object):
         httpRequestResponse: a httpRequestResponse as returned by burp apis.
         callbacks: burp callbacks object.
         """
-        self.uuid = uuid.uuid4()
-        self.httpRequestResponse = httpRequestResponse
         self.callbacks = callbacks
 
+        self.httpRequestResponse = httpRequestResponse
         self._analyzedRequest = None
         self._analyzedResponse = None
 

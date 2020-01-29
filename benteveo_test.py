@@ -178,6 +178,20 @@ class TestToolbox(unittest.TestCase):
 
         return etm, state, callbacks
 
+    def _cetm_populate(self):
+        """
+        Create EndpointTableModel convenience function. Also populates the endpoints.
+        """
+        etm, state, callbacks = self._cetm()
+
+        dict = self._cem("GET", "http://www.example.org/users")
+        dict = self._cem("GET", "http://www.example.org/users", dict)
+        etm.endpoints = dict
+
+        endpointModel = etm.endpoints["GET|http://www.example.org/users"]
+
+        return etm, state, callbacks, endpointModel
+
     def _crtm(self):
         """
         Create RequestTableModel convenience function.
@@ -514,37 +528,38 @@ class TestToolbox(unittest.TestCase):
                 cb, state, burpCallbacks = self._ctc()
                 state.status = STATUS_OK
 
-                etm, _, _ = self._cetm()
+                etm, _, _, endpointModel = self._cetm_populate()
                 state.endpointTableModel = etm
-                dict = self._cem("GET", "http://www.example.org/users")
-                dict = self._cem("GET", "http://www.example.org/users", dict)
-                etm.endpoints = dict
 
                 cb.runAllButtonClicked(GenericMock())
 
                 self.assertEquals(state.executorService.submit.call_count, 2)
 
     def testResendRequestModel(self):
-        cb, state, burpCallbacks = self._ctc()
-
         with self.mockUtilityCalls():
-            etm, _, _ = self._cetm()
+            cb, state, burpCallbacks = self._ctc()
+            etm, _, _, endpointModel = self._cetm_populate()
+
             state.endpointTableModel = etm
             state.endpointTableModel.update = GenericMock()
             ui.apply_rules.return_value = (1, bytearray("lel"))
 
-            dict = self._cem("GET", "http://www.example.org/users")
-            dict = self._cem("GET", "http://www.example.org/users", dict)
-            etm.endpoints = dict
-
-            endpointModel = etm.endpoints["GET|http://www.example.org/users"]
-            cb.resendRequestModel(endpointModel, endpointModel.requests[0])
+            cb.resendRequestModel(endpointModel.requests[0])
 
             self.assertEquals(burpCallbacks.makeHttpRequest.call_count, 1)
             self.assertEquals(state.endpointTableModel.update.call_count, 1)
 
     def testEndpointTableModelUpdate(self):
-        self.assertTrue(False)
+        etm, state, callbacks, endpointModel = self._cetm_populate()
+
+        requestModel = GenericMock()
+        newResponse = GenericMock()
+        etm.update(requestModel, newResponse)
+
+        self.assertEquals(requestModel.repeatedHttpRequestResponse, newResponse)
+        self.assertEquals(requestModel.repeated, True)
+        self.assertEquals(requestModel.repeatedAnalyzedRequest, callbacks.helpers.analyzeResponse.return_value)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -498,23 +498,23 @@ class ToolboxCallbacks(NewThreadCaller):
         """
         if self.state.status == STATUS_FAILED:
             self.messageDialog("Confirm status check button says OK.")
+            return
 
         endpoints = self.state.endpointTableModel.endpoints
 
         for key in endpoints:
             endpoint = endpoints[key]
             for request in endpoint.requests:
-                runnable = PythonFunctionRunnable(self.resendRequestModel, args=[endpoint, request])
+                runnable = PythonFunctionRunnable(self.resendRequestModel, args=[request])
                 self.state.executorService.submit(runnable)
 
-    def resendRequestModel(self, endpoint, request):
+    def resendRequestModel(self, request):
         """
         Resends a request model and performs basic analysis on whether it responds with the same state and status code.
 
         This method gets called from each thread. Operations on the global state need to be thread-safe.
 
         Args:
-            endpoint: the EndpointModel this request corresponds to.
             request: the RequestModel to resend.
         """
         target = request.httpRequestResponse.httpService
@@ -524,6 +524,6 @@ class ToolboxCallbacks(NewThreadCaller):
 
         if nbModified > 0:
             newResponse = self.burpCallbacks.makeHttpRequest(target, modifiedRequest)
-            self.state.endpointTableModel.update(endpoint, request, newResponse)
+            self.state.endpointTableModel.update(request, newResponse)
         else:
             log("Request was not modified so was not resent.")
