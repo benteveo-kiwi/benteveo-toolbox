@@ -1,4 +1,6 @@
 
+import utility
+
 class EndpointModel(object):
     """
     This endpoint represents a group of requests that are all sent to the same URL, or roughly the same URL. The idea is to aggregate all endpoints that refer on the backend to the same code path.
@@ -29,7 +31,7 @@ class EndpointModel(object):
         self.requests.append(requestModel)
 
     @property
-    def percent_same_status(self):
+    def percentSameStatus(self):
         """
         Computates the number of requests that have the same status. This is done by iterating through the requests made to this endpoint and comparing the statusCode of the original response versus the new response.
         """
@@ -46,7 +48,7 @@ class EndpointModel(object):
         return percentage
 
     @property
-    def percent_same_len(self):
+    def percentSameLength(self):
         """
         Computates the number of requests that have the same length. This is done by iterating through the requests made to this endpoint and comparing the length of the original response versus the new response.
         """
@@ -60,6 +62,18 @@ class EndpointModel(object):
         percentage = round((nb * 100) / total_requests)
 
         return percentage
+
+    @property
+    def containsId(self):
+        """
+        Boolean computed function that is True if any of the requests associated with this endpoint contain an ID. An ID is defined as anything that matches the regex in `utility.regex`.
+        """
+        for request in self.requests:
+            for regex in utility.regex:
+                if regex.search(request.httpRequestResponse.request) != None:
+                    return True
+
+        return False
 
 class RequestModel(object):
     """

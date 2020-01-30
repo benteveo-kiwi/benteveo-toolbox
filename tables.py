@@ -6,8 +6,8 @@ from javax.swing import JTable
 from javax.swing.table import AbstractTableModel
 from models import EndpointModel, RequestModel, ReplacementRuleModel
 from threading import Lock
+import utility
 import json
-import re
 import sys
 
 class Table(JTable):
@@ -49,12 +49,7 @@ class EndpointTableModel(AbstractTableModel):
     Also keeps in the endpoints attribute a list of all known endpoints.
     """
 
-    cols = ["Method", "URL", "#", "% Same Status", "% Same Len"]
-    regex = [
-        re.compile("[a-f0-9]{64}"), # 748bbea58bb5db34e95d02edb2935c0f25cb1593e5ab837767e260a349c02ca7
-        re.compile("[0-9]{13}-[a-f0-9]{64}"), # 1579636429347-c568eba49ad17ef37b9db4ea42466b71e065481ddbc2f5a63503719c44dfb6ee
-        re.compile("S-1.*"), # S-1-5-21-2931253742-2981233768-3707659581-1108%26d-90670d8a68
-    ]
+    cols = ["Method", "URL", "#", "% Same Status", "% Same Len", "Has ID"]
 
     def __init__(self, state, callbacks):
         """
@@ -101,7 +96,7 @@ class EndpointTableModel(AbstractTableModel):
         Args:
             folder: a part of the file path. E.g. if you have a URL that looks like "images/image.jpg" then this function will be invoked twice, once with "images" and another with "image.jpg".
         """
-        for regex in self.regex:
+        for regex in utility.regex:
             if regex.match(folder):
                 return True
 
@@ -216,9 +211,11 @@ class EndpointTableModel(AbstractTableModel):
         elif columnIndex == 2:
             return len(endpointModel.requests)
         elif columnIndex == 3:
-            return endpointModel.percent_same_status
+            return endpointModel.percentSameStatus
         elif columnIndex == 4:
-            return endpointModel.percent_same_len
+            return endpointModel.percentSameLength
+        elif columnIndex == 5:
+            return endpointModel.containsId
 
     def update(self, requestModel, httpRequestResponse):
         """

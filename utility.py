@@ -1,7 +1,16 @@
 from java.util import ArrayList
 from java.util import Arrays
+import re
 
+# Constants for the add replacement form.
 REPLACE_HEADER_NAME = "Replace by header name"
+
+# Regular expressions that match an ID.
+regex = [
+    re.compile("[a-f0-9]{64}"), # 748bbea58bb5db34e95d02edb2935c0f25cb1593e5ab837767e260a349c02ca7
+    re.compile("[0-9]{13}-[a-f0-9]{64}"), # 1579636429347-c568eba49ad17ef37b9db4ea42466b71e065481ddbc2f5a63503719c44dfb6ee
+    re.compile("S-1.*"), # S-1-5-21-2931253742-2981233768-3707659581-1108%26d-90670d8a68
+]
 
 class NoSuchHeaderException(Exception):
     pass

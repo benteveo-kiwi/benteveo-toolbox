@@ -332,14 +332,21 @@ class TestToolbox(unittest.TestCase):
         dict = self._cem("GET", "http://www.example.org/profiles", dict)
         etm.endpoints = dict
 
+        etm.endpoints["GET|http://www.example.org/users"].requests[0].httpRequestResponse.request = String("748bbea58bb5db34e95d02edb2935c0f25cb1593e5ab837767e260a349c02ca7").getBytes()
+        etm.endpoints["GET|http://www.example.org/profiles"].requests[0].httpRequestResponse.request = String("lala").getBytes()
+
         self.assertEquals(etm.getValueAt(0, 0), "GET")
         self.assertEquals(etm.getValueAt(0, 1), "http://www.example.org/users")
+        self.assertEquals(etm.getValueAt(0, 5), True)
+
 
         self.assertEquals(etm.getValueAt(1, 0), "GET")
         self.assertEquals(etm.getValueAt(1, 1), "http://www.example.org/profiles")
         self.assertEquals(etm.getValueAt(1, 2), 1)
         self.assertEquals(etm.getValueAt(1, 3), 0)
         self.assertEquals(etm.getValueAt(1, 4), 0)
+
+        self.assertEquals(etm.getValueAt(1, 5), False)
 
     def testTableCallsModel(self):
         etm, state, callbacks = self._cetm()
@@ -598,12 +605,26 @@ class TestToolbox(unittest.TestCase):
         requestB.repeatedAnalyzedResponse.statusCode = 200
         requestB.analyzedResponse.statusCode = 403
 
-        self.assertEquals(em.percent_same_status, 50)
+        self.assertEquals(em.percentSameStatus, 50)
 
         requestB.repeatedAnalyzedResponse.statusCode = 200
         requestB.analyzedResponse.statusCode = 200
 
-        self.assertEquals(em.percent_same_status, 100)
+        self.assertEquals(em.percentSameStatus, 100)
+
+    def testContainsId(self):
+        em = EndpointModel("GET", "/lol")
+
+        requestA = GenericMock()
+        requestA.httpRequestResponse.request = String("qwfqwfqwfq 748bbea58bb5db34e95d02edb2935c0f25cb1593e5ab837767e260a349c02ca7").getBytes()
+        requestB = GenericMock()
+        requestB.httpRequestResponse.request = String("qgwgqwgwgqw").getBytes()
+
+        em.requests = [requestA, requestB]
+
+        self.assertTrue(em.containsId)
+
+
 
 
 if __name__ == '__main__':
