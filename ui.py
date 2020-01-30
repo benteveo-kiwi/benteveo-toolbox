@@ -170,7 +170,7 @@ class ToolboxUI():
         check.addActionListener(self.callbacks.checkButtonClicked)
         state.checkButton = check
 
-        runAll = self.getButton("Run ALL", 20, 90)
+        runAll = self.getButton("Run IDOR", 20, 90)
         runAll.addActionListener(self.callbacks.runAllButtonClicked)
 
         textarea = self.getTextArea()
