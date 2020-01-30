@@ -624,7 +624,58 @@ class TestToolbox(unittest.TestCase):
 
         self.assertTrue(em.containsId)
 
+    def testClickFuzzOnlyIfSameStatus(self):
+        with self.mockUtilityCalls():
+            cb, state, burpCallbacks = self._ctc()
 
+            cb.fuzzRequestModel = GenericMock()
+
+            em = GenericMock()
+            requestA = GenericMock()
+            requestB = GenericMock()
+
+            em.requests = [requestA, requestB]
+            state.endpointTableModel.endpoints = {"GET|/lol": em}
+            requestA.analyzedResponse.statusCode = 200
+            requestA.repeatedAnalizedResponse.statusCode = 403
+
+            requestB.analyzedResponse.statusCode = 200
+            requestB.repeatedAnalizedResponse.statusCode = 403
+
+            cb.fuzzButtonClicked(GenericMock())
+
+            self.assertEquals(cb.fuzzRequestModel.call_count, 0)
+            self.assertEquals(ui.log.call_count, 1)
+
+
+            requestA.analyzedResponse.statusCode = 200
+            requestA.repeatedAnalyzedResponse.statusCode = 403
+
+            requestB.analyzedResponse.statusCode = 200
+            requestB.repeatedAnalyzedResponse.statusCode = 200
+
+            cb.fuzzButtonClicked(GenericMock())
+
+            self.assertEquals(cb.fuzzRequestModel.call_count, 1)
+            self.assertEquals(ui.log.call_count, 1, "Should still be one")
+
+
+            requestA.analyzedResponse.statusCode = 200
+            requestA.repeatedAnalyzedResponse.statusCode = 200
+
+            requestB.analyzedResponse.statusCode = 200
+            requestB.repeatedAnalyzedResponse.statusCode = 200
+
+            cb.fuzzButtonClicked(GenericMock())
+
+            self.assertEquals(cb.fuzzRequestModel.call_count, 2, "Should only have increased by one.")
+            self.assertEquals(ui.log.call_count, 1, "Should still be one")
+
+    def testFuzzRequestModel(self):
+        cb, state, burpCallbacks = self._ctc()
+        cb.fuzzRequestModel(GenericMock())
+
+        burpCallbacks.doActiveScan.call_count == 1
 
 
 if __name__ == '__main__':

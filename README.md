@@ -47,6 +47,6 @@ The session check contans a textarea that needs to be populated with a HTTP requ
 
 Once you have populated the field, a user of this application can click the `Check` button. This will obtain your request, modify it as per your replacement rules, and re-send it observing the result. If your session is still valid, the button's label will change to `Check: OK`, whereas if it is no longer valid you will receive a message indicating the reason for this failure.
 
-Clicking the `Run IDOR` button will, if the session check has previously been successful, re-send all requests that have been previously made with the transformation rules applied and store the results.
+Clicking the `Resend ALL` button will, if the session check has previously been successful, re-send all requests that have been previously made with the transformation rules applied and store the results.
 
 Clicking the `FUZZ` button will go through requests and, if it is able to find requests whose status code is the same for both the original request and the modified request, send them to Burp's active scan. The idea is to only fuzz one request per endpoint and only initiate fuzzing if we can be reasonable sure we have a valid session for the endpoint.

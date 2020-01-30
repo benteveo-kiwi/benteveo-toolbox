@@ -170,8 +170,11 @@ class ToolboxUI():
         check.addActionListener(self.callbacks.checkButtonClicked)
         state.checkButton = check
 
-        runAll = self.getButton("Run IDOR", 20, 90)
+        runAll = self.getButton("Resend ALL", 20, 90)
         runAll.addActionListener(self.callbacks.runAllButtonClicked)
+
+        fuzz = self.getButton("FUZZ", 20, 130)
+        fuzz.addActionListener(self.callbacks.fuzzButtonClicked)
 
         textarea = self.getTextArea()
         state.sessionCheckTextarea = textarea.viewport.view
@@ -180,6 +183,7 @@ class ToolboxUI():
         rules.add(title)
         rules.add(check)
         rules.add(runAll)
+        rules.add(fuzz)
         rules.add(textarea)
 
         return rules
@@ -495,18 +499,17 @@ class ToolboxCallbacks(NewThreadCaller):
         target = self.burpCallbacks.helpers.buildHttpService(hostHeader, 443, "https")
 
         nbModified, modifiedRequest = apply_rules(self.burpCallbacks, self.state.replacementRuleTableModel.rules, baseRequest)
-        if nbModified > 0:
-            response = self.burpCallbacks.makeHttpRequest(target, modifiedRequest)
-            analyzedResponse = self.burpCallbacks.helpers.analyzeResponse(response.response)
+        if nbModified == 0:
+            log("Warning: No modifications made to check request.")
 
-            if analyzedResponse.statusCode == 200:
-                self.state.checkButton.setText("Check: OK")
-                self.state.status = STATUS_OK
-            else:
-                self.messageDialog("Check request failed: response was not 200 OK, was '%s'." % str(analyzedResponse.statusCode))
-                self.checkButtonSetFail()
+        response = self.burpCallbacks.makeHttpRequest(target, modifiedRequest)
+        analyzedResponse = self.burpCallbacks.helpers.analyzeResponse(response.response)
+
+        if analyzedResponse.statusCode == 200:
+            self.state.checkButton.setText("Check: OK")
+            self.state.status = STATUS_OK
         else:
-            self.messageDialog("Check request not issued because no modifications to it were made based on the rules provided by user.")
+            self.messageDialog("Check request failed: response was not 200 OK, was '%s'." % str(analyzedResponse.statusCode))
             self.checkButtonSetFail()
 
     def checkButtonSetFail(self):
@@ -554,9 +557,46 @@ class ToolboxCallbacks(NewThreadCaller):
         nbModified, modifiedRequest = apply_rules(self.burpCallbacks,
                                                 self.state.replacementRuleTableModel.rules,
                                                 request.httpRequestResponse.request)
+        if nbModified == 0:
+            log("Warning: Request for '%s' endpoint was not modified." % path)
 
-        if nbModified > 0:
-            newResponse = self.burpCallbacks.makeHttpRequest(target, modifiedRequest)
-            self.state.endpointTableModel.update(request, newResponse)
-        else:
-            log("Request was not modified so was not resent.")
+        newResponse = self.burpCallbacks.makeHttpRequest(target, modifiedRequest)
+        self.state.endpointTableModel.update(request, newResponse)
+
+    def fuzzButtonClicked(self, event):
+        """
+        Handles clicks to the FUZZ button. We attempt to fuzz only one request per endpoint, using our own criteria to differentiate between endpoints as defined in `EndpontTableModel.generateEndpointHash`. For each endpoint, we iterate through requests until we can find a single request whose status code is the same between both the original and the repeated request, we only fuzz once. Note this tool will only succeed if the user has run Resend ALL functionality.
+
+        Args:
+            event: the event as passed by Swing.
+        """
+        if self.state.status == STATUS_FAILED:
+            self.messageDialog("Please ensure you have checked status and also clicked the 'Resend ALL' button prior to running FUZZ.")
+            return
+
+        endpoints = self.state.endpointTableModel.endpoints
+
+        for key in endpoints:
+            endpoint = endpoints[key]
+            fuzzed = False
+            for request in endpoint.requests:
+                if not request.repeatedAnalyzedResponse:
+                    log("Did not fuzz '%s' because it hasn't been repeated yet" % endpoint.url)
+
+                if request.analyzedResponse.statusCode == request.repeatedAnalyzedResponse.statusCode:
+                    self.fuzzRequestModel(request)
+                    fuzzed = True
+                    break
+
+            if not fuzzed:
+                log("Did not fuzz '%s' because no reproducible requests are possible with the current replacement rules" % endpoint.url)
+
+    def fuzzRequestModel(self, request):
+        """
+        Sends a RequestModel to be fuzzed by burp.
+
+        Args:
+            request: an instance of RequestModel.
+        """
+        httpService = request.httpRequestResponse.httpService
+        self.burpCallbacks.doActiveScan(httpService.host, httpService.port, httpService.protocol == "https", request.httpRequestResponse.request)

@@ -86,8 +86,8 @@ class RequestModel(object):
         See https://portswigger.net/burp/extender/api/burp/IExtensionHelpers.html#analyzeRequest(burp.IHttpRequestResponse) for more info. Analysis of the response is performed as-needed because it is very slow and hangs burp.
 
         Args:
-        httpRequestResponse: a httpRequestResponse as returned by burp apis.
-        callbacks: burp callbacks object.
+            httpRequestResponse: a httpRequestResponse as returned by burp apis.
+            callbacks: burp callbacks object.
         """
         self.callbacks = callbacks
 
