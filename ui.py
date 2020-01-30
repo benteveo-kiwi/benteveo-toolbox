@@ -8,6 +8,7 @@ from java.awt import GridBagConstraints
 from java.awt import GridBagLayout
 from java.lang import Runnable
 from java.lang import String
+from java.lang import Class
 from java.lang import Thread
 from java.util.concurrent import Executors
 from javax.swing import BorderFactory
@@ -21,11 +22,11 @@ from javax.swing import JPanel
 from javax.swing import JScrollPane
 from javax.swing import JSplitPane
 from javax.swing import JTabbedPane
-from javax.swing import JTable;
+from javax.swing import JTable
 from javax.swing import JTextArea
 from javax.swing import JTextField
 from javax.swing import SwingUtilities
-from tables import Table
+from tables import Table, CellHighlighterRenderer
 from utility import apply_rules, get_header, log
 from utility import REPLACE_HEADER_NAME, NoSuchHeaderException
 import jarray
@@ -220,6 +221,8 @@ class ToolboxUI():
         splitpane.setDividerLocation(1000)
 
         endpointTable = Table(state.endpointTableModel)
+        endpointTable.setDefaultRenderer(Class.forName('java.lang.Object'), CellHighlighterRenderer())
+
         endpointTable.getColumnModel().getColumn(0).setPreferredWidth(15)
         endpointTable.getColumnModel().getColumn(1).setPreferredWidth(500)
         endpointTable.setAutoCreateRowSorter(True)

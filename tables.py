@@ -1,14 +1,18 @@
 from collections import OrderedDict
+from java.awt import Color
+from java.lang import Boolean
 from java.lang import Class
-from java.lang import String
 from java.lang import Integer
+from java.lang import String
+from javax.swing import JLabel
 from javax.swing import JTable
 from javax.swing.table import AbstractTableModel
+from javax.swing.table import DefaultTableCellRenderer
 from models import EndpointModel, RequestModel, ReplacementRuleModel
 from threading import Lock
-import utility
 import json
 import sys
+import utility
 
 class Table(JTable):
     """
@@ -41,6 +45,27 @@ class Table(JTable):
             print "Exception in selectRow:"
             print sys.exc_info()
             raise
+
+
+class CellHighlighterRenderer(DefaultTableCellRenderer):
+
+    def getTableCellRendererComponent(self, table, value, isSelected, hasFocus, rowIndex, columnIndex):
+        comp = DefaultTableCellRenderer.getTableCellRendererComponent(self, table, value, isSelected, hasFocus, rowIndex, columnIndex)
+
+        modelRow = table.convertRowIndexToModel(rowIndex)
+
+
+        percentSameStatus = table.model.getValueAt(modelRow, 3)
+        percentSameLength = table.model.getValueAt(modelRow, 4)
+        hasId = table.model.getValueAt(modelRow, 5)
+
+        if percentSameStatus == 100.0 and percentSameLength == 100.0 and hasId:
+            print(percentSameStatus, percentSameLength, hasId, table.model)
+            comp.setBackground(Color.GREEN)
+        else:
+            comp.setBackground(Color.WHITE)
+
+        return comp
 
 class EndpointTableModel(AbstractTableModel):
     """
@@ -242,11 +267,10 @@ class EndpointTableModel(AbstractTableModel):
         """
         if columnIndex in [2, 3, 4]:
             return Integer(0).class
+        if columnIndex in [5]:
+            return Boolean(True).class
         else:
             return String("").class
-   #  public Class getColumnClass(int c) {
-   # return getValueAt(0, c).getClass();
-# }
 
 class RequestTableModel(AbstractTableModel):
     """
