@@ -54,7 +54,6 @@ class CellHighlighterRenderer(DefaultTableCellRenderer):
 
         modelRow = table.convertRowIndexToModel(rowIndex)
 
-
         percentSameStatus = table.model.getValueAt(modelRow, 3)
         percentSameLength = table.model.getValueAt(modelRow, 4)
         hasId = table.model.getValueAt(modelRow, 5)
