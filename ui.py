@@ -225,7 +225,7 @@ class ToolboxUI():
         splitpane.setDividerLocation(1000)
 
         endpointTable = Table(state.endpointTableModel)
-        endpointTable.setDefaultRenderer(Class.forName('java.lang.Object'), CellHighlighterRenderer())
+        endpointTable.setDefaultRenderer(Class.forName('java.lang.Object'), CellHighlighterRenderer(state))
 
         endpointTable.getColumnModel().getColumn(0).setPreferredWidth(15)
         endpointTable.getColumnModel().getColumn(1).setPreferredWidth(500)

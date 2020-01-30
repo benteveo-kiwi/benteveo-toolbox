@@ -49,6 +49,9 @@ class Table(JTable):
 
 class CellHighlighterRenderer(DefaultTableCellRenderer):
 
+    def __init__(self, state):
+        self.state = state
+
     def getTableCellRendererComponent(self, table, value, isSelected, hasFocus, rowIndex, columnIndex):
         comp = DefaultTableCellRenderer.getTableCellRendererComponent(self, table, value, isSelected, hasFocus, rowIndex, columnIndex)
 
@@ -58,11 +61,14 @@ class CellHighlighterRenderer(DefaultTableCellRenderer):
         percentSameLength = table.model.getValueAt(modelRow, 4)
         hasId = table.model.getValueAt(modelRow, 5)
 
-        if percentSameStatus == 100.0 and percentSameLength == 100.0 and hasId:
-            print(percentSameStatus, percentSameLength, hasId, table.model)
-            comp.setBackground(Color.GREEN)
+        idorModeActive = len(self.state.replacementRuleTableModel.rules) > 0
+
+        if (percentSameStatus == 100.0 and percentSameLength == 100.0 and hasId) and idorModeActive:
+            if not isSelected:
+                comp.setBackground(Color.GREEN)
         else:
-            comp.setBackground(Color.WHITE)
+            if not isSelected:
+                comp.setBackground(Color.WHITE)
 
         return comp
 
