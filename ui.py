@@ -375,7 +375,7 @@ class ToolboxCallbacks(NewThreadCaller):
 
         # Avoid instantiating during unit test as it is not needed.
         if not utility.INSIDE_UNIT_TEST:
-            self.state.executorService = Executors.newFixedThreadPool(32)
+            self.state.executorService = Executors.newFixedThreadPool(16)
             Utilities(self.burpCallbacks) # backslash powered scanner global state
 
     def refreshButtonClicked(self, event):
@@ -680,14 +680,7 @@ class ToolboxCallbacks(NewThreadCaller):
                 parameter.valueEnd)
 
             runnable = PythonFunctionRunnable(self.doActiveScan, args=[fastScan, request.httpRequestResponse, insertionPoint])
-            futures.append(self.state.executorService.submit(runnable))
-
-        while len(futures) > 0:
-            self.sleep(1)
-
-            for future in futures:
-                if future.isDone():
-                    futures.remove(future)
+            self.state.executorService.submit(runnable)
 
     def doActiveScan(self, fastScan, httpRequestResponse, insertionPoint):
         """
