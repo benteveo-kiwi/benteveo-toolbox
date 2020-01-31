@@ -536,7 +536,7 @@ class TestToolbox(unittest.TestCase):
             with self.mockUtilityCalls():
                 cb, state, burpCallbacks = self._ctc()
                 state.status = STATUS_FAILED
-                cb.runAllButtonClicked(GenericMock())
+                cb.resendAllButtonClicked(GenericMock())
 
                 self.assertEquals(ui.JOptionPane.showMessageDialog.call_count, 1)
 
@@ -549,7 +549,7 @@ class TestToolbox(unittest.TestCase):
                 etm, _, _, endpointModel = self._cetm_populate()
                 state.endpointTableModel = etm
 
-                cb.runAllButtonClicked(GenericMock())
+                cb.resendAllButtonClicked(GenericMock())
 
                 self.assertEquals(state.executorService.submit.call_count, 2)
 

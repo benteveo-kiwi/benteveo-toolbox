@@ -168,10 +168,9 @@ class ToolboxUI():
 
         check = self.getButton("Check", 20, 50)
         check.addActionListener(self.callbacks.checkButtonClicked)
-        state.checkButton = check
 
-        runAll = self.getButton("Resend ALL", 20, 90)
-        runAll.addActionListener(self.callbacks.runAllButtonClicked)
+        resendAll = self.getButton("Resend ALL", 20, 90)
+        resendAll.addActionListener(self.callbacks.resendAllButtonClicked)
 
         fuzz = self.getButton("FUZZ", 20, 130)
         fuzz.addActionListener(self.callbacks.fuzzButtonClicked)
@@ -182,7 +181,7 @@ class ToolboxUI():
 
         rules.add(title)
         rules.add(check)
-        rules.add(runAll)
+        rules.add(resendAll)
         rules.add(fuzz)
         rules.add(textarea)
 
@@ -365,6 +364,9 @@ class ToolboxCallbacks(NewThreadCaller):
     def refreshButtonClicked(self, event):
         """
         Handles click of refresh button. This reloads the results page with the new scope.
+
+        Args:
+            event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
         """
         self.state.endpointTableModel.clear()
 
@@ -448,6 +450,9 @@ class ToolboxCallbacks(NewThreadCaller):
     def addButtonClicked(self, event):
         """
         Handles click of the replacement rule add button.
+
+        Args:
+            event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
         """
         try:
             type, search, replacement = self.buildAddEditPrompt()
@@ -460,6 +465,9 @@ class ToolboxCallbacks(NewThreadCaller):
     def editButtonClicked(self, event):
         """
         Handles click of the edit button.
+
+        Args:
+            event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
         """
         rule = self.state.replacementRuleTableModel.selected
 
@@ -474,6 +482,9 @@ class ToolboxCallbacks(NewThreadCaller):
     def deleteButtonClicked(self, event):
         """
         Handles click of the delete button.
+
+        Args:
+            event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
         """
         rule = self.state.replacementRuleTableModel.selected
         self.state.replacementRuleTableModel.delete(rule.id)
@@ -485,9 +496,14 @@ class ToolboxCallbacks(NewThreadCaller):
         Gets called when a user clicks the check button. Repeats the request with the modifications made and assesses whether the result is positive or negative.
 
         Normalizes the newlines in the textarea to make them compatible with burp APIs and then converts them into a binary string.
+
+        Args:
+            event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
         """
 
         textAreaText = self.state.sessionCheckTextarea.text
+
+        checkButton = event.source
 
         self.burpCallbacks.saveExtensionSetting("scopeCheckRequest", textAreaText)
 
@@ -498,7 +514,7 @@ class ToolboxCallbacks(NewThreadCaller):
             hostHeader = get_header(self.burpCallbacks, baseRequest, "host")
         except NoSuchHeaderException:
             self.messageDialog("Check request failed: no Host header present in session check request.")
-            self.checkButtonSetFail()
+            self.checkButtonSetFail(checkButton)
             return
 
         target = self.burpCallbacks.helpers.buildHttpService(hostHeader, 443, "https")
@@ -511,37 +527,53 @@ class ToolboxCallbacks(NewThreadCaller):
         analyzedResponse = self.burpCallbacks.helpers.analyzeResponse(response.response)
 
         if analyzedResponse.statusCode == 200:
-            self.state.checkButton.setText("Check: OK")
+            checkButton.setText("Check: OK")
             self.state.status = STATUS_OK
         else:
             self.messageDialog("Check request failed: response was not 200 OK, was '%s'." % str(analyzedResponse.statusCode))
-            self.checkButtonSetFail()
+            self.checkButtonSetFail(checkButton)
 
-    def checkButtonSetFail(self):
+    def checkButtonSetFail(self, checkButton):
         """
         Convenience function to make the check button failed.
-        """
-        self.state.checkButton.setText("Check: FAILED")
-        self.state.status = STATUS_FAILED
-
-    def runAllButtonClicked(self, event):
-        """
-        Gets called when the user calls runAll. This initiates the main IDOR checking.
 
         Args:
-            event: the event as passed by Swing.
+            checkButton: the JButton instance corresponding to the check button.
+        """
+        checkButton.setText("Check: FAILED")
+        self.state.status = STATUS_FAILED
+
+    def resendAllButtonClicked(self, event):
+        """
+        Gets called when the user clicks the `Resend ALL` button. This initiates the main IDOR checking.
+
+        Args:
+            event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
         """
         if self.state.status == STATUS_FAILED:
             self.messageDialog("Confirm status check button says OK.")
             return
 
         endpoints = self.state.endpointTableModel.endpoints
+        resendAllButton = event.source
 
+        futures = []
         for key in endpoints:
             endpoint = endpoints[key]
             for request in endpoint.requests:
                 runnable = PythonFunctionRunnable(self.resendRequestModel, args=[request])
-                self.state.executorService.submit(runnable)
+                futures.append(self.state.executorService.submit(runnable))
+
+        while len(futures) > 0:
+            Thread.sleep(1)
+
+            resendAllButton.setText("%s remaining" % (len(futures)))
+
+            for future in futures:
+                if future.isDone():
+                    futures.remove(future)
+
+        resendAllButton.setText("Resent")
 
     def resendRequestModel(self, request):
         """
@@ -573,7 +605,7 @@ class ToolboxCallbacks(NewThreadCaller):
         Handles clicks to the FUZZ button. We attempt to fuzz only one request per endpoint, using our own criteria to differentiate between endpoints as defined in `EndpontTableModel.generateEndpointHash`. For each endpoint, we iterate through requests until we can find a single request whose status code is the same between both the original and the repeated request, we only fuzz once. Note this tool will only succeed if the user has run Resend ALL functionality.
 
         Args:
-            event: the event as passed by Swing.
+            event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
         """
         if self.state.status == STATUS_FAILED:
             self.messageDialog("Please ensure you have checked status and also clicked the 'Resend ALL' button prior to running FUZZ.")
