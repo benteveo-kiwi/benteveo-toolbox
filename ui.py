@@ -372,6 +372,7 @@ class ToolboxCallbacks(NewThreadCaller):
         self.burpCallbacks.saveExtensionSetting("scopes", scopes)
 
         scope_urls = scopes.split("\n")
+        nbRequests = 0
         for url in scope_urls:
             url = url.strip()
             if not url:
@@ -379,7 +380,11 @@ class ToolboxCallbacks(NewThreadCaller):
 
             requests = self.burpCallbacks.getSiteMap(url)
             for request in requests:
+                nbRequests += 1
                 self.state.endpointTableModel.add(request)
+
+        button = event.source
+        button.setText("Refreshed (%s)" % (str(nbRequests)))
 
     def buildAddEditPrompt(self, typeValue=None, searchValue=None, replacementValue=None):
         """
