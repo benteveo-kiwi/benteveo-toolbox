@@ -175,6 +175,9 @@ class EndpointTableModel(AbstractTableModel):
 
         Args:
             httpRequestResponse: an HttpRequestResponse java object as returned by burp.
+
+        Return:
+            boolean: whether the request was added or not. It is not added if method is options or if there is no response stored for the original request.
         """
 
         with self.lock:
@@ -184,10 +187,10 @@ class EndpointTableModel(AbstractTableModel):
             hash, url, method = self.generateEndpointHash(analyzedRequest)
 
             if not httpRequestResponse.response:
-                return
+                return False
 
             if method == "OPTIONS":
-                return
+                return False
 
             if hash not in self.endpoints:
                 self.endpoints[hash] = EndpointModel(method, url)
@@ -196,6 +199,8 @@ class EndpointTableModel(AbstractTableModel):
 
             added_at_index = len(self.endpoints)
             self.fireTableRowsInserted(added_at_index - 1, added_at_index - 1)
+
+            return True
 
     def clear(self):
         """

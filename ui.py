@@ -382,8 +382,9 @@ class ToolboxCallbacks(NewThreadCaller):
 
             requests = self.burpCallbacks.getSiteMap(url)
             for request in requests:
-                nbRequests += 1
-                self.state.endpointTableModel.add(request)
+                added = self.state.endpointTableModel.add(request)
+                if added:
+                    nbRequests += 1
 
         button = event.source
         button.setText("Refreshed (%s)" % (str(nbRequests)))
@@ -504,6 +505,7 @@ class ToolboxCallbacks(NewThreadCaller):
         textAreaText = self.state.sessionCheckTextarea.text
 
         checkButton = event.source
+        checkButton.setText("Checking...")
 
         self.burpCallbacks.saveExtensionSetting("scopeCheckRequest", textAreaText)
 
@@ -558,11 +560,13 @@ class ToolboxCallbacks(NewThreadCaller):
         resendAllButton = event.source
 
         futures = []
+        nb = 0
         for key in endpoints:
             endpoint = endpoints[key]
             for request in endpoint.requests:
                 runnable = PythonFunctionRunnable(self.resendRequestModel, args=[request])
                 futures.append(self.state.executorService.submit(runnable))
+                nb += 1
 
         while len(futures) > 0:
             Thread.sleep(1)
