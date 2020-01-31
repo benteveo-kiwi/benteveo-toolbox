@@ -689,9 +689,15 @@ class TestToolbox(unittest.TestCase):
         cb, state, burpCallbacks = self._ctc()
         cb.fuzzRequestModel(GenericMock())
 
-        burpCallbacks.doActiveScan.call_count == 1
+        self.assertTrue(False)
 
     def testFuzzOnlyIfNotFuzzedAlready(self):
+        self.assertTrue(False)
+
+    def testRefreshKeepsMetadata(self):
+        self.assertTrue(False)
+
+    def testPersistsMetadata(self):
         self.assertTrue(False)
 
     def testFuzzRequestModel(self):
@@ -710,6 +716,8 @@ class TestToolbox(unittest.TestCase):
             request.analyzedRequest.parameters = [parameter]
 
             cb.fuzzRequestModel(request)
+
+            self.assertTrue(False)
 
 if __name__ == '__main__':
     unittest.main()

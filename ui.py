@@ -375,7 +375,7 @@ class ToolboxCallbacks(NewThreadCaller):
 
         # Avoid instantiating during unit test as it is not needed.
         if not utility.INSIDE_UNIT_TEST:
-            self.state.executorService = Executors.newFixedThreadPool(16)
+            self.state.executorService = Executors.newFixedThreadPool(32)
             Utilities(self.burpCallbacks) # backslash powered scanner global state
 
     def refreshButtonClicked(self, event):
@@ -622,7 +622,9 @@ class ToolboxCallbacks(NewThreadCaller):
 
     def fuzzButtonClicked(self, event):
         """
-        Handles clicks to the FUZZ button. We attempt to fuzz only one request per endpoint, using our own criteria to differentiate between endpoints as defined in `EndpontTableModel.generateEndpointHash`. For each endpoint, we iterate through requests until we can find a single request whose status code is the same between both the original and the repeated request, we only fuzz once. Note this tool will only succeed if the user has run Resend ALL functionality.
+        Handles clicks to the FUZZ button.
+
+        We attempt to fuzz only one request per endpoint, using our own criteria to differentiate between endpoints as defined in `EndpontTableModel.generateEndpointHash`. For each endpoint, we iterate through requests until we can find a single request whose status code is the same between both the original and the repeated request, we only fuzz once. Note this tool will only succeed if the user has run Resend ALL functionality.
 
         Args:
             event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
@@ -636,6 +638,9 @@ class ToolboxCallbacks(NewThreadCaller):
         fuzzButton = event.source
         fuzzButton.setText("Fuzzing...")
 
+        maxConcurrentRequests = 8
+
+        futures = []
         for key in endpoints:
             endpoint = endpoints[key]
 
@@ -645,12 +650,20 @@ class ToolboxCallbacks(NewThreadCaller):
 
             fuzzed = False
             for request in endpoint.requests:
-                self.sleep(0.2)
+
+                while len(futures) >= maxConcurrentRequests:
+                    self.sleep(1)
+                    for future in futures:
+                        if future.isDone():
+                            futures.remove(future)
+
                 if not request.repeatedAnalyzedResponse:
                     self.resendRequestModel(request)
 
                 if request.analyzedResponse.statusCode == request.repeatedAnalyzedResponse.statusCode:
-                    self.fuzzRequestModel(request)
+                    runnable = PythonFunctionRunnable(self.fuzzRequestModel, args=[request])
+                    futures.append(self.state.executorService.submit(runnable))
+
                     fuzzed = True
                     break
 
@@ -680,18 +693,26 @@ class ToolboxCallbacks(NewThreadCaller):
                 parameter.valueEnd)
 
             runnable = PythonFunctionRunnable(self.doActiveScan, args=[fastScan, request.httpRequestResponse, insertionPoint])
-            self.state.executorService.submit(runnable)
+            futures.append(self.state.executorService.submit(runnable))
+
+        while len(futures) > 0:
+            self.sleep(1)
+
+            for future in futures:
+                if future.isDone():
+                    futures.remove(future)
 
     def doActiveScan(self, fastScan, httpRequestResponse, insertionPoint):
         """
-        Performs an active scan and stores issues found. Because the scanner fails sometimes with random errors when HTTP requests timeout and etcetera, we retry a couple of times.
+        Performs an active scan and stores issues found.
+
+        Because the scanner fails sometimes with random errors when HTTP requests timeout and etcetera, we retry a couple of times.
 
         Args:
             fastScan: the BPS fastscan object.
             httpRequestResponse: the value to pass to doActiveScan
             insertionPoint: the insertionPoint to scan.
         """
-
         retries = 5
         while retries > 0:
             self.sleep(1)
