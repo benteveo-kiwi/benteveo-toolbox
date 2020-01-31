@@ -19,6 +19,7 @@ class EndpointModel(object):
         self.url = url
         self.nb = 0
         self.requests = []
+        self.fuzzed = False
 
     def add(self, requestModel):
         """

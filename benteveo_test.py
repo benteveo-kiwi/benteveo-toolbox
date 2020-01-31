@@ -631,6 +631,8 @@ class TestToolbox(unittest.TestCase):
             cb.fuzzRequestModel = GenericMock()
 
             em = GenericMock()
+            em.fuzzed = False
+
             requestA = GenericMock()
             requestB = GenericMock()
 
@@ -676,6 +678,12 @@ class TestToolbox(unittest.TestCase):
         cb.fuzzRequestModel(GenericMock())
 
         burpCallbacks.doActiveScan.call_count == 1
+
+    def testFuzzOnlyIfNotFuzzedAlready(self):
+        self.assertTrue(False)
+
+    def testFuzzOnlyIfNotMaxConcurrent(self):
+        self.assertTrue(False)
 
 
 if __name__ == '__main__':

@@ -14,6 +14,7 @@ class State(object):
 
     def __init__(self):
         self.status = STATUS_FAILED
+        self.shutdown = False
 
 class BurpExtender(IBurpExtender):
 

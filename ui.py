@@ -44,6 +44,12 @@ class InvalidInputException(Exception):
     """
     pass
 
+class ShutdownException(Exception):
+    """
+    Raised on threads to cause a failure that will trigger the thread to naturally die.
+    """
+    pass
+
 class ToolboxUI():
 
     BUTTON_WIDTH = 140
@@ -359,7 +365,7 @@ class ToolboxCallbacks(NewThreadCaller):
 
         # Avoid instantiating during unit test as it is not needed.
         if not utility.INSIDE_UNIT_TEST:
-            self.state.executorService = Executors.newFixedThreadPool(20)
+            self.state.executorService = Executors.newFixedThreadPool(32)
 
     def refreshButtonClicked(self, event):
         """
@@ -569,8 +575,7 @@ class ToolboxCallbacks(NewThreadCaller):
                 nb += 1
 
         while len(futures) > 0:
-            Thread.sleep(1)
-
+            self.sleep(1)
             resendAllButton.setText("%s remaining" % (len(futures)))
 
             for future in futures:
@@ -611,21 +616,54 @@ class ToolboxCallbacks(NewThreadCaller):
         Args:
             event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
         """
+
+        from burp import BurpExtender
+        print BurpExtender
+
         if self.state.status == STATUS_FAILED:
             self.messageDialog("Please ensure you have checked status and also clicked the 'Resend ALL' button prior to running FUZZ.")
             return
 
         endpoints = self.state.endpointTableModel.endpoints
 
+        MAX_CONCURRENT = 8
+
+        fuzzButton = event.source
+        fuzzButton.setText("Fuzzing...")
+
+        fuzzing = []
+        nbFuzzed = 0
         for key in endpoints:
             endpoint = endpoints[key]
+
+            if endpoint.fuzzed:
+                log("Did not fuzz '%s' because it was already fuzzed." % endpoint.url)
+                continue
+
+            while len(fuzzing) >= MAX_CONCURRENT:
+                self.sleep(1)
+
+                for item in fuzzing:
+                    endpoint, scanQueueItem = item
+                    status = scanQueueItem.status
+                    if status == "finished":
+                        fuzzing.remove(item)
+                        nbFuzzed += 1
+                        fuzzButton.text = "Fuzzed %s" % nbFuzzed
+
+                        self.state.endpointTableModel.setFuzzed(True)
+                    elif status == "waiting":
+                        fuzzButton.text = "Paused"
+                    elif status == "cancelled":
+                        fuzzing.remove(item)
+
             fuzzed = False
             for request in endpoint.requests:
                 if not request.repeatedAnalyzedResponse:
                     log("Did not fuzz '%s' because it hasn't been repeated yet" % endpoint.url)
 
                 if request.analyzedResponse.statusCode == request.repeatedAnalyzedResponse.statusCode:
-                    self.fuzzRequestModel(request)
+                    fuzzing.append((endpoint, self.fuzzRequestModel(request)))
                     fuzzed = True
                     break
 
@@ -638,6 +676,22 @@ class ToolboxCallbacks(NewThreadCaller):
 
         Args:
             request: an instance of RequestModel.
+
+        Return:
+            IScanQueueItem: as documented here https://portswigger.net/burp/extender/api/burp/IScanQueueItem.html
         """
         httpService = request.httpRequestResponse.httpService
-        self.burpCallbacks.doActiveScan(httpService.host, httpService.port, httpService.protocol == "https", request.httpRequestResponse.request)
+        return self.burpCallbacks.doActiveScan(httpService.host, httpService.port, httpService.protocol == "https", request.httpRequestResponse.request)
+
+    def sleep(self, time):
+        """
+        Sleeps for a certain time. Checks for state.shutdown and if it is true raises an exception.
+
+        Args:
+            time: the time in seconds.
+        """
+        if self.state.shutdown:
+            log("Shutting down, global shutdown requested.")
+            raise ShutdownException()
+
+        Thread.sleep(time * 1000)

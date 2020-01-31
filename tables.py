@@ -282,6 +282,17 @@ class EndpointTableModel(AbstractTableModel):
         else:
             return String("").class
 
+    def setFuzzed(self, endpointModel, fuzzed):
+        """
+        Thread safe way to mark EndpointModel as fuzzed.
+
+        Args:
+            endpointModel: the EndpointModel object,
+            fuzzed: new fuzzed value.
+        """
+        with self.lock:
+            endpointModel.fuzzed = fuzzed
+
 class RequestTableModel(AbstractTableModel):
     """
     Table model for the requests panel on the Results tab on the right.
