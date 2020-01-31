@@ -272,6 +272,7 @@ class EndpointTableModel(AbstractTableModel):
 
             requestModel.repeatedHttpRequestResponse = httpRequestResponse
             requestModel.repeatedAnalyzedResponse = self.callbacks.helpers.analyzeResponse(httpRequestResponse.response)
+            requestModel.repeatedAnalyzedRequest = self.callbacks.helpers.analyzeRequest(httpRequestResponse.request)
             requestModel.repeated = True
 
             self.fireTableDataChanged()

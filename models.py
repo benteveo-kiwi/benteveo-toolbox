@@ -98,6 +98,7 @@ class RequestModel(object):
 
         self.repeatedHttpRequestResponse = None
         self.repeatedAnalyzedResponse = None
+        self.repeatedAnalyzedRequest = None
 
         self.repeated = False
 

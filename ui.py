@@ -6,9 +6,9 @@ from java.awt import Dimension
 from java.awt import FlowLayout
 from java.awt import GridBagConstraints
 from java.awt import GridBagLayout
+from java.lang import Class
 from java.lang import Runnable
 from java.lang import String
-from java.lang import Class
 from java.lang import Thread
 from java.util.concurrent import Executors
 from javax.swing import BorderFactory
@@ -27,11 +27,15 @@ from javax.swing import JTextArea
 from javax.swing import JTextField
 from javax.swing import SwingUtilities
 from tables import Table, CellHighlighterRenderer
+from threading import Lock
 from utility import apply_rules, get_header, log
 from utility import REPLACE_HEADER_NAME, NoSuchHeaderException
 import jarray
+import java.lang.Exception
+import logging
 import re
 import sys
+import time
 import traceback
 import utility
 
@@ -320,10 +324,7 @@ class PythonFunctionRunnable(Runnable):
         except ShutdownException:
             print "Thread shutting down"
         except:
-            print "Exception in thread:"
-            print sys.exc_info()
-            print traceback.print_tb(sys.exc_info()[2])
-            raise
+            logging.exception("Exception in thread")
 
 class NewThreadCaller(object):
     """
@@ -370,6 +371,7 @@ class ToolboxCallbacks(NewThreadCaller):
         """
         self.state = state
         self.burpCallbacks = burpCallbacks
+        self.lock = Lock()
 
         # Avoid instantiating during unit test as it is not needed.
         if not utility.INSIDE_UNIT_TEST:
@@ -643,6 +645,7 @@ class ToolboxCallbacks(NewThreadCaller):
 
             fuzzed = False
             for request in endpoint.requests:
+                self.sleep(0.2)
                 if not request.repeatedAnalyzedResponse:
                     self.resendRequestModel(request)
 
@@ -667,26 +670,57 @@ class ToolboxCallbacks(NewThreadCaller):
         """
 
         fastScan = FastScan(self.burpCallbacks)
+        parameters = request.repeatedAnalyzedRequest.parameters
 
-        nbModified, modifiedRequest = apply_rules(self.burpCallbacks,
-                                            self.state.replacementRuleTableModel.rules,
-                                            request.httpRequestResponse.request)
-
-        parameters = self.burpCallbacks.helpers.analyzeRequest(modifiedRequest).parameters
-
+        futures = []
         for parameter in parameters:
-            insertionPoint = self.burpCallbacks.helpers.makeScannerInsertionPoint(parameter.name, modifiedRequest, parameter.valueStart, parameter.valueEnd)
-            fastScan.doActiveScan(request.httpRequestResponse, insertionPoint)
+            insertionPoint = self.burpCallbacks.helpers.makeScannerInsertionPoint(parameter.name,
+                request.repeatedHttpRequestResponse.request,
+                parameter.valueStart,
+                parameter.valueEnd)
 
-    def sleep(self, time):
+            runnable = PythonFunctionRunnable(self.doActiveScan, args=[fastScan, request.httpRequestResponse, insertionPoint])
+            futures.append(self.state.executorService.submit(runnable))
+
+        while len(futures) > 0:
+            self.sleep(1)
+
+            for future in futures:
+                if future.isDone():
+                    futures.remove(future)
+
+    def doActiveScan(self, fastScan, httpRequestResponse, insertionPoint):
+        """
+        Performs an active scan and stores issues found. Because the scanner fails sometimes with random errors when HTTP requests timeout and etcetera, we retry a couple of times.
+
+        Args:
+            fastScan: the BPS fastscan object.
+            httpRequestResponse: the value to pass to doActiveScan
+            insertionPoint: the insertionPoint to scan.
+        """
+
+        retries = 5
+        while retries > 0:
+            self.sleep(1)
+            try:
+                issues = fastScan.doActiveScan(httpRequestResponse, insertionPoint)
+            except java.lang.Exception:
+                retries -= 1
+                log("Java exception on BPS, retrying.")
+
+        with self.lock:
+            for issue in issues:
+                self.burpCallbacks.addScanIssue(issue)
+
+    def sleep(self, sleepTime):
         """
         Sleeps for a certain time. Checks for state.shutdown and if it is true raises an unhandled exception that crashes the thread.
 
         Args:
-            time: the time in seconds.
+            sleepTime: the time in seconds.
         """
         if self.state.shutdown:
             log("Thread shutting down.")
             raise ShutdownException()
 
-        Thread.sleep(time * 1000)
+        time.sleep(sleepTime)
