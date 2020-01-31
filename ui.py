@@ -35,6 +35,11 @@ import sys
 import traceback
 import utility
 
+# This is required because burp's scanning API does not support calling other extensions directly and active scan fails in strange ways. This is unsupported but may give us more flexibility. For more information see ToolboxCallbacks.fuzzRequestModel.
+utility.importJavaDependency("lib/backslash-powered-scanner-fork.jar")
+
+from burp import FastScan, Utilities
+
 STATUS_OK = 0
 STATUS_FAILED = 1
 
@@ -312,9 +317,12 @@ class PythonFunctionRunnable(Runnable):
         """
         try:
             self.method(*self.args, **self.kwargs)
+        except ShutdownException:
+            print "Thread shutting down"
         except:
             print "Exception in thread:"
             print sys.exc_info()
+            print traceback.print_tb(sys.exc_info()[2])
             raise
 
 class NewThreadCaller(object):
@@ -366,6 +374,7 @@ class ToolboxCallbacks(NewThreadCaller):
         # Avoid instantiating during unit test as it is not needed.
         if not utility.INSIDE_UNIT_TEST:
             self.state.executorService = Executors.newFixedThreadPool(32)
+            Utilities(self.burpCallbacks) # backslash powered scanner global state
 
     def refreshButtonClicked(self, event):
         """
@@ -616,23 +625,15 @@ class ToolboxCallbacks(NewThreadCaller):
         Args:
             event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
         """
-
-        from burp import BurpExtender
-        print BurpExtender
-
         if self.state.status == STATUS_FAILED:
-            self.messageDialog("Please ensure you have checked status and also clicked the 'Resend ALL' button prior to running FUZZ.")
+            self.messageDialog("Confirm status check button says OK.")
             return
 
         endpoints = self.state.endpointTableModel.endpoints
 
-        MAX_CONCURRENT = 8
-
         fuzzButton = event.source
         fuzzButton.setText("Fuzzing...")
 
-        fuzzing = []
-        nbFuzzed = 0
         for key in endpoints:
             endpoint = endpoints[key]
 
@@ -640,30 +641,13 @@ class ToolboxCallbacks(NewThreadCaller):
                 log("Did not fuzz '%s' because it was already fuzzed." % endpoint.url)
                 continue
 
-            while len(fuzzing) >= MAX_CONCURRENT:
-                self.sleep(1)
-
-                for item in fuzzing:
-                    endpoint, scanQueueItem = item
-                    status = scanQueueItem.status
-                    if status == "finished":
-                        fuzzing.remove(item)
-                        nbFuzzed += 1
-                        fuzzButton.text = "Fuzzed %s" % nbFuzzed
-
-                        self.state.endpointTableModel.setFuzzed(True)
-                    elif status == "waiting":
-                        fuzzButton.text = "Paused"
-                    elif status == "cancelled":
-                        fuzzing.remove(item)
-
             fuzzed = False
             for request in endpoint.requests:
                 if not request.repeatedAnalyzedResponse:
-                    log("Did not fuzz '%s' because it hasn't been repeated yet" % endpoint.url)
+                    self.resendRequestModel(request)
 
                 if request.analyzedResponse.statusCode == request.repeatedAnalyzedResponse.statusCode:
-                    fuzzing.append((endpoint, self.fuzzRequestModel(request)))
+                    self.fuzzRequestModel(request)
                     fuzzed = True
                     break
 
@@ -674,24 +658,35 @@ class ToolboxCallbacks(NewThreadCaller):
         """
         Sends a RequestModel to be fuzzed by burp.
 
+        Burp has a helper function for running active scans, however I am not using it for two reasons. Firstly, as of 2.x the mechanism for configuring scans got broken in a re-shuffle of burp code. Secondly, burp's session handling for large scans is not perfect, once the session expires the scan continues to fuzz requests with an expired session, and implementing my own session handling on top of IScannerCheck objects is not possible due to a bug in getStatus() where requests that have errored out still have a "scanning" status. If these issues are resolved we can get rid of this workaround.
+
+        We work around this by importing Backslash powered scanner's FastScan and calling it directly https://github.com/PortSwigger/backslash-powered-scanner/blob/c861d56a3b84e4720bb0c352a22999012a7b2bc3/src/burp/BurpExtender.java#L55. We maintain a fork of BPS benteveo-kiwi for making private classes public.
+
         Args:
             request: an instance of RequestModel.
-
-        Return:
-            IScanQueueItem: as documented here https://portswigger.net/burp/extender/api/burp/IScanQueueItem.html
         """
-        httpService = request.httpRequestResponse.httpService
-        return self.burpCallbacks.doActiveScan(httpService.host, httpService.port, httpService.protocol == "https", request.httpRequestResponse.request)
+
+        fastScan = FastScan(self.burpCallbacks)
+
+        nbModified, modifiedRequest = apply_rules(self.burpCallbacks,
+                                            self.state.replacementRuleTableModel.rules,
+                                            request.httpRequestResponse.request)
+
+        parameters = self.burpCallbacks.helpers.analyzeRequest(modifiedRequest).parameters
+
+        for parameter in parameters:
+            insertionPoint = self.burpCallbacks.helpers.makeScannerInsertionPoint(parameter.name, modifiedRequest, parameter.valueStart, parameter.valueEnd)
+            fastScan.doActiveScan(request.httpRequestResponse, insertionPoint)
 
     def sleep(self, time):
         """
-        Sleeps for a certain time. Checks for state.shutdown and if it is true raises an exception.
+        Sleeps for a certain time. Checks for state.shutdown and if it is true raises an unhandled exception that crashes the thread.
 
         Args:
             time: the time in seconds.
         """
         if self.state.shutdown:
-            log("Shutting down, global shutdown requested.")
+            log("Thread shutting down.")
             raise ShutdownException()
 
         Thread.sleep(time * 1000)

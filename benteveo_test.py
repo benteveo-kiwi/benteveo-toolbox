@@ -7,6 +7,7 @@ from java.util import ArrayList
 from models import EndpointModel, RequestModel, ReplacementRuleModel
 from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableModel
 from ui import ToolboxCallbacks, STATUS_OK, STATUS_FAILED
+from burp import IBurpExtenderCallbacks, IExtensionHelpers
 import contextlib
 import math
 import operator
@@ -15,6 +16,7 @@ import unittest
 import utility
 
 utility.INSIDE_UNIT_TEST = True
+
 
 class GenericMock(object):
     """
@@ -92,6 +94,16 @@ class GenericMock(object):
         Makes object subscriptable, e.g. genericMockInstance['test']
         """
         return GenericMock()
+
+class BurpHelpersMock(GenericMock, IExtensionHelpers):
+
+    def makeScannerInsertionPoint(self, *args, **kwargs):
+        return GenericMock()
+
+class BurpCallbacksMock(GenericMock, IBurpExtenderCallbacks):
+
+    def getHelpers(self):
+        return BurpHelpersMock()
 
 class TestToolbox(unittest.TestCase):
     """
@@ -682,9 +694,22 @@ class TestToolbox(unittest.TestCase):
     def testFuzzOnlyIfNotFuzzedAlready(self):
         self.assertTrue(False)
 
-    def testFuzzOnlyIfNotMaxConcurrent(self):
-        self.assertTrue(False)
+    def testFuzzRequestModel(self):
+        with self.mockUtilityCalls():
+            cb, state, burpCallbacks = self._ctc()
 
+            cb.burpCallbacks = BurpCallbacksMock()
+
+            request = GenericMock()
+
+            parameter = GenericMock()
+            parameter.name = "lol"
+            parameter.valueStart = 10
+            parameter.valueEnd = 12
+            request.httpRequestResponse.request = String("GET /lol HTTP/1.1\r\nHost:lel.com\r\n\r\n").getBytes()
+            request.analyzedRequest.parameters = [parameter]
+
+            cb.fuzzRequestModel(request)
 
 if __name__ == '__main__':
     unittest.main()

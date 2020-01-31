@@ -1,6 +1,7 @@
 from java.util import ArrayList
 from java.util import Arrays
 import re
+import sys
 
 # Constants for the add replacement form.
 REPLACE_HEADER_NAME = "Replace by header name"
@@ -122,3 +123,7 @@ def log(message):
         Message to print.
     """
     print message +"\n",
+
+def importJavaDependency(source):
+    if source not in sys.path:
+        sys.path.append(source)

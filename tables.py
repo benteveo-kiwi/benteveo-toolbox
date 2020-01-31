@@ -265,6 +265,11 @@ class EndpointTableModel(AbstractTableModel):
             httpRequestResponse: the HttpRequestResponse object returned by performing the new request.
         """
         with self.lock:
+
+            if not httpRequestResponse.response:
+                log("No response received on update call()")
+                return
+
             requestModel.repeatedHttpRequestResponse = httpRequestResponse
             requestModel.repeatedAnalyzedResponse = self.callbacks.helpers.analyzeResponse(httpRequestResponse.response)
             requestModel.repeated = True
