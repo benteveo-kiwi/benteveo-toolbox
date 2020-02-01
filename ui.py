@@ -380,6 +380,7 @@ class ToolboxCallbacks(NewThreadCaller):
             self.state.executorService = Executors.newFixedThreadPool(32)
             self.state.perRequestExecutorService = Executors.newFixedThreadPool(8)
 
+            log("Backslash Powered Scanner preferences:")
             Utilities(self.burpCallbacks) # backslash powered scanner global state
 
     def refreshButtonClicked(self, event):
