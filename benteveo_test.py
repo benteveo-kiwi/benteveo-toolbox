@@ -695,7 +695,7 @@ class TestToolbox(unittest.TestCase):
             em = GenericMock()
             em.fuzzed = False
 
-            state.executorService.submit.return_value.isDone = raise_exception
+            state.perRequestExecutorService.submit.return_value.isDone = raise_exception
 
             requestA = GenericMock()
 
@@ -709,7 +709,7 @@ class TestToolbox(unittest.TestCase):
             except TestException:
                 pass
 
-            self.assertEquals(state.executorService.submit.call_count, cb.maxConcurrentRequests)
+            self.assertEquals(state.perRequestExecutorService.submit.call_count, cb.maxConcurrentRequests)
 
     def testClickFuzzMaxConcurrentRequestsOneMore(self):
         with self.mockUtilityCalls():
@@ -727,7 +727,7 @@ class TestToolbox(unittest.TestCase):
                 else:
                     raise TestException()
 
-            state.executorService.submit.return_value.isDone = return_true_once
+            state.perRequestExecutorService.submit.return_value.isDone = return_true_once
 
             requestA = GenericMock()
 
@@ -741,7 +741,7 @@ class TestToolbox(unittest.TestCase):
             except TestException:
                 pass
 
-            self.assertEquals(state.executorService.submit.call_count, cb.maxConcurrentRequests + 1)
+            self.assertEquals(state.perRequestExecutorService.submit.call_count, cb.maxConcurrentRequests + 1)
 
     def testClickFuzzOnlyIfSameStatusSame(self):
         with self.mockUtilityCalls():
@@ -763,13 +763,26 @@ class TestToolbox(unittest.TestCase):
 
             cb.fuzzButtonClicked(GenericMock())
 
-            self.assertEquals(state.executorService.submit.call_count, 1)
+            self.assertEquals(state.perRequestExecutorService.submit.call_count, 1)
 
     def testFuzzRequestModel(self):
         cb, state, burpCallbacks = self._ctc()
+        ui.FastScan = GenericMock()
         cb.fuzzRequestModel(GenericMock())
 
-        self.assertTrue(False)
+        self.assertEquals(ui.FastScan.call_count, 1)
+        self.assertEquals(burpCallbacks.helpers.makeScannerInsertionPoint.call_count, 3)
+        self.assertEquals(state.executorService.submit.call_count, 3)
+
+        state.executorService.submit.return_value.isDone = raise_exception
+
+        classIsDone = False
+        try:
+            cb.fuzzRequestModel(GenericMock())
+        except TestException:
+            classIsDone = True
+
+        self.assertTrue(classIsDone, "Calls is done.")
 
     def testFuzzOnlyIfNotFuzzedAlready(self):
         self.assertTrue(False)

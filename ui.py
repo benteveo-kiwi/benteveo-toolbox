@@ -378,6 +378,8 @@ class ToolboxCallbacks(NewThreadCaller):
         # Avoid instantiating during unit test as it is not needed.
         if not utility.INSIDE_UNIT_TEST:
             self.state.executorService = Executors.newFixedThreadPool(32)
+            self.state.perRequestExecutorService = Executors.newFixedThreadPool(8)
+
             Utilities(self.burpCallbacks) # backslash powered scanner global state
 
     def refreshButtonClicked(self, event):
@@ -651,7 +653,7 @@ class ToolboxCallbacks(NewThreadCaller):
 
             fuzzed = False
             for request in endpoint.requests:
-
+                print(len(futures))
                 while len(futures) >= self.maxConcurrentRequests:
                     self.sleep(1)
                     for future in futures:
@@ -664,7 +666,7 @@ class ToolboxCallbacks(NewThreadCaller):
 
                 if request.analyzedResponse.statusCode == request.repeatedAnalyzedResponse.statusCode:
                     runnable = PythonFunctionRunnable(self.fuzzRequestModel, args=[request])
-                    futures.append(self.state.executorService.submit(runnable))
+                    futures.append(self.state.perRequestExecutorService.submit(runnable))
 
                     fuzzed = True
                     break
@@ -720,6 +722,7 @@ class ToolboxCallbacks(NewThreadCaller):
             self.sleep(1)
             try:
                 issues = fastScan.doActiveScan(httpRequestResponse, insertionPoint)
+                print issues
                 break
             except java.lang.Exception:
                 retries -= 1

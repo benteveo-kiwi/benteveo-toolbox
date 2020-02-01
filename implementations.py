@@ -125,5 +125,6 @@ class ExtensionStateListener(IExtensionStateListener):
         This function gets called when the extension is unloaded and is in charge of cleanup.
         """
         self.state.executorService.shutdown()
+        self.state.perRequestExecutorService.shutdown()
         self.state.shutdown = True
         log("Successfully shut down.")
