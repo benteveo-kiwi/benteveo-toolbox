@@ -378,7 +378,7 @@ class ToolboxCallbacks(NewThreadCaller):
         # Avoid instantiating during unit test as it is not needed.
         if not utility.INSIDE_UNIT_TEST:
             self.state.executorService = Executors.newFixedThreadPool(32)
-            self.state.perRequestExecutorService = Executors.newFixedThreadPool(8)
+            self.state.perRequestExecutorService = Executors.newFixedThreadPool(self.maxConcurrentRequests)
 
             log("Backslash Powered Scanner preferences:")
             Utilities(self.burpCallbacks) # backslash powered scanner global state

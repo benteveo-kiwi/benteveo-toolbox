@@ -11,6 +11,7 @@ from javax.swing.table import DefaultTableCellRenderer
 from models import EndpointModel, RequestModel, ReplacementRuleModel
 from threading import Lock
 import json
+import logging
 import sys
 import utility
 
@@ -42,10 +43,7 @@ class Table(JTable):
         try:
             self.model.selectRow(self.convertRowIndexToModel(row))
         except:
-            print "Exception in selectRow:"
-            print sys.exc_info()
-            raise
-
+            logging.exception("Exception in selectRow")
 
 class CellHighlighterRenderer(DefaultTableCellRenderer):
 
@@ -302,9 +300,9 @@ class EndpointTableModel(AbstractTableModel):
         """
         with self.lock:
             endpointModel.fuzzed = fuzzed
-
             store = "true" if fuzzed else "false"
-            self.callbacks.saveExtensionSetting("fuzzed-"+self.generateEndpointHash(endpointModel.requests[0].analyzedRequest), store)
+            self.callbacks.saveExtensionSetting("fuzzed-"+self.generateEndpointHash(endpointModel.requests[0].analyzedRequest)[0], store)
+            self.fireTableDataChanged()
 
 class RequestTableModel(AbstractTableModel):
     """
