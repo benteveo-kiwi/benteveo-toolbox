@@ -6,20 +6,21 @@ class EndpointModel(object):
     This endpoint represents a group of requests that are all sent to the same URL, or roughly the same URL. The idea is to aggregate all endpoints that refer on the backend to the same code path.
     """
 
-    def __init__(self, method, url):
+    def __init__(self, method, url, fuzzed=False):
         """
         Main constructor method.
 
         Args:
             method: the HTTP method for this endpoint.
             url: the normalized url for this endpoint. See `EndpointTableModel.generateEndpointHash()`
+            fuzzed: whether this endpoint has been fuzzed already
         """
 
         self.method = method
         self.url = url
         self.nb = 0
         self.requests = []
-        self.fuzzed = False
+        self.fuzzed = fuzzed
 
     def add(self, requestModel):
         """

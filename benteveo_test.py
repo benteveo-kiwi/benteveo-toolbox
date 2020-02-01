@@ -787,11 +787,31 @@ class TestToolbox(unittest.TestCase):
     def testFuzzOnlyIfNotFuzzedAlready(self):
         self.assertTrue(False)
 
-    def testRefreshKeepsMetadata(self):
-        self.assertTrue(False)
-
     def testPersistsMetadata(self):
-        self.assertTrue(False)
+        etm, state, callbacks = self._cetm()
+        em = GenericMock()
+        etm.generateEndpointHash = GenericMock()
+        etm.generateEndpointHash.return_value = "uniqueid"
+
+        etm.setFuzzed(em, True)
+
+        self.assertEquals(callbacks.saveExtensionSetting.call_count, 1)
+
+    def testPersistsMetadataLoad(self):
+        state = GenericMock()
+        callbacks = GenericMock()
+        callbacks.loadExtensionSetting = GenericMock()
+        callbacks.loadExtensionSetting.return_value = "true"
+        etm = EndpointTableModel(state, callbacks)
+
+        ret = callbacks.helpers.analyzeRequest.return_value
+        ret.method = "GET"
+        ret.url = URL("http://www.example.org/users")
+
+        etm.add(GenericMock())
+
+        self.assertEqual(callbacks.loadExtensionSetting.call_count, 1)
+        self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].fuzzed, True)
 
 if __name__ == '__main__':
     unittest.main()
