@@ -784,8 +784,6 @@ class TestToolbox(unittest.TestCase):
 
         self.assertTrue(classIsDone, "Calls is done.")
 
-    def testFuzzOnlyIfNotFuzzedAlready(self):
-        self.assertTrue(False)
 
     def testPersistsMetadata(self):
         etm, state, callbacks = self._cetm()
@@ -812,6 +810,42 @@ class TestToolbox(unittest.TestCase):
 
         self.assertEqual(callbacks.loadExtensionSetting.call_count, 1)
         self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].fuzzed, True)
+
+    def testFuzzOnlyIfNotFuzzedAlready(self):
+        with self.mockUtilityCalls():
+            cb, state, burpCallbacks = self._ctc()
+
+            em = GenericMock()
+            em.fuzzed = True
+            requestA = GenericMock()
+
+            em.requests = [requestA]
+            state.endpointTableModel.endpoints = {"GET|/lol": em}
+            requestA.analyzedResponse.statusCode = 200
+            requestA.repeatedAnalyzedResponse.statusCode = 200
+
+            cb.fuzzButtonClicked(GenericMock())
+
+            self.assertEquals(state.perRequestExecutorService.submit.call_count, 0)
+
+    def testMarksEndpointsAsFuzzed(self):
+        with self.mockUtilityCalls():
+            cb, state, burpCallbacks = self._ctc()
+
+            em = GenericMock()
+            em.fuzzed = False
+            em.setFuzzed = GenericMock()
+            requestA = GenericMock()
+
+            em.requests = [requestA]
+            state.endpointTableModel.endpoints = {"GET|/lol": em}
+            requestA.analyzedResponse.statusCode = 200
+            requestA.repeatedAnalyzedResponse.statusCode = 200
+
+            cb.fuzzButtonClicked(GenericMock())
+
+            self.assertEquals(state.perRequestExecutorService.submit.call_count, 1)
+            self.assertEquals(em.setFuzzed.call_count, 1)
 
 if __name__ == '__main__':
     unittest.main()

@@ -653,26 +653,40 @@ class ToolboxCallbacks(NewThreadCaller):
 
             fuzzed = False
             for request in endpoint.requests:
-                print(len(futures))
-                while len(futures) >= self.maxConcurrentRequests:
-                    self.sleep(1)
-                    for future in futures:
-                        if future.isDone():
-                            futures.remove(future)
-                            break
 
                 if not request.repeatedAnalyzedResponse:
                     self.resendRequestModel(request)
 
                 if request.analyzedResponse.statusCode == request.repeatedAnalyzedResponse.statusCode:
                     runnable = PythonFunctionRunnable(self.fuzzRequestModel, args=[request])
-                    futures.append(self.state.perRequestExecutorService.submit(runnable))
+                    futures.append((endpoint, self.state.perRequestExecutorService.submit(runnable)))
 
                     fuzzed = True
                     break
 
             if not fuzzed:
                 log("Did not fuzz '%s' because no reproducible requests are possible with the current replacement rules" % endpoint.url)
+
+            self.checkMaxConcurrentRequests(futures, self.maxConcurrentRequests)
+
+        self.checkMaxConcurrentRequests(futures, 1) # ensure all requests are `isDone()`
+
+    def checkMaxConcurrentRequests(self, futures, maxRequests):
+        """
+        Blocking function that waits until we can make more requests.
+
+        Args:
+            futures: futures as defined in `fuzzButtonClicked`
+            maxRequests: maximum requests that should be pending at this time.
+        """
+        while len(futures) >= maxRequests:
+            self.sleep(1)
+            for tuple in futures:
+                endpoint, future = tuple
+                if future.isDone():
+                    futures.remove(tuple)
+                    endpoint.setFuzzed(True)
+                    break
 
     def fuzzRequestModel(self, request):
         """
@@ -710,7 +724,7 @@ class ToolboxCallbacks(NewThreadCaller):
         """
         Performs an active scan and stores issues found.
 
-        Because the scanner fails sometimes with random errors when HTTP requests timeout and etcetera, we retry a couple of times.
+        Because the scanner fails sometimes with random errors when HTTP requests timeout and etcetera, we retry a couple of times. This allows us to scan faster because we can be more resilient to errors.
 
         Args:
             fastScan: the BPS fastscan object.
@@ -726,7 +740,7 @@ class ToolboxCallbacks(NewThreadCaller):
                 break
             except java.lang.Exception:
                 retries -= 1
-                log("Java exception on BPS, retrying.")
+                logging.exception("Java exception on BPS, retrying.")
 
         with self.lock:
             for issue in issues:
