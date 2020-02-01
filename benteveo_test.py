@@ -851,7 +851,7 @@ class TestToolbox(unittest.TestCase):
             cb.fuzzButtonClicked(GenericMock())
 
             self.assertEquals(state.perRequestExecutorService.submit.call_count, 1)
-            self.assertEquals(em.setFuzzed.call_count, 1)
+            self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 1)
 
 if __name__ == '__main__':
     unittest.main()

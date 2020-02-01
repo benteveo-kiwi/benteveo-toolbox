@@ -687,7 +687,7 @@ class ToolboxCallbacks(NewThreadCaller):
                 endpoint, future = tuple
                 if future.isDone():
                     futures.remove(tuple)
-                    endpoint.setFuzzed(True)
+                    self.state.endpointTableModel.setFuzzed(endpoint, True)
                     break
 
     def fuzzRequestModel(self, request):
