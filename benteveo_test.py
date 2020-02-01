@@ -353,9 +353,13 @@ class TestToolbox(unittest.TestCase):
         etm.endpoints["GET|http://www.example.org/users"].requests[0].httpRequestResponse.request = String("748bbea58bb5db34e95d02edb2935c0f25cb1593e5ab837767e260a349c02ca7").getBytes()
         etm.endpoints["GET|http://www.example.org/profiles"].requests[0].httpRequestResponse.request = String("lala").getBytes()
 
+        etm.endpoints["GET|http://www.example.org/users"].fuzzed = True
+        etm.endpoints["GET|http://www.example.org/profiles"].fuzzed = False
+
         self.assertEquals(etm.getValueAt(0, 0), "GET")
         self.assertEquals(etm.getValueAt(0, 1), "http://www.example.org/users")
         self.assertEquals(etm.getValueAt(0, 5), True)
+        self.assertEquals(etm.getValueAt(0, 6), True)
 
 
         self.assertEquals(etm.getValueAt(1, 0), "GET")
@@ -365,6 +369,8 @@ class TestToolbox(unittest.TestCase):
         self.assertEquals(etm.getValueAt(1, 4), 0)
 
         self.assertEquals(etm.getValueAt(1, 5), False)
+        self.assertEquals(etm.getValueAt(1, 6), False)
+
 
     def testTableCallsModel(self):
         etm, state, callbacks = self._cetm()

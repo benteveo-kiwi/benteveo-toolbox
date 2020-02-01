@@ -79,7 +79,7 @@ class EndpointTableModel(AbstractTableModel):
     Also keeps in the endpoints attribute a list of all known endpoints.
     """
 
-    cols = ["Method", "URL", "#", "% Same Status", "% Same Len", "Has ID"]
+    cols = ["Method", "URL", "#", "% Same Status", "% Same Len", "Has ID", "Fuzzed"]
 
     def __init__(self, state, callbacks):
         """
@@ -253,6 +253,8 @@ class EndpointTableModel(AbstractTableModel):
             return endpointModel.percentSameLength
         elif columnIndex == 5:
             return endpointModel.containsId
+        elif columnIndex == 6:
+            return endpointModel.fuzzed
 
     def update(self, requestModel, httpRequestResponse):
         """
