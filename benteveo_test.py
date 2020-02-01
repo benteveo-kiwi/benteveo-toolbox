@@ -95,15 +95,18 @@ class GenericMock(object):
         """
         return GenericMock()
 
-class BurpHelpersMock(GenericMock, IExtensionHelpers):
 
-    def makeScannerInsertionPoint(self, *args, **kwargs):
-        return GenericMock()
+class TestException(Exception):
+    """
+    Custom exception for testing.
+    """
+    pass
 
-class BurpCallbacksMock(GenericMock, IBurpExtenderCallbacks):
-
-    def getHelpers(self):
-        return BurpHelpersMock()
+def raise_exception(*args, **kwargs):
+    """
+    Convenience function for raising an exception
+    """
+    raise TestException()
 
 class TestToolbox(unittest.TestCase):
     """
@@ -226,12 +229,15 @@ class TestToolbox(unittest.TestCase):
         burpCallbacks = GenericMock()
 
         state.sessionCheckTextarea.text = "GET / HTTP/1.1\r\nHost: example.org\r\n\r\n"
+        state.executorService = GenericMock()
+
         request = ArrayList()
         request.add("GET / HTTP/1.1")
         request.add("Host: example.org")
         burpCallbacks.helpers.analyzeRequest.return_value.headers = request
 
         cb = ToolboxCallbacks(state, burpCallbacks)
+        cb.sleep = GenericMock()
 
         return cb, state, burpCallbacks
 
@@ -636,11 +642,11 @@ class TestToolbox(unittest.TestCase):
 
         self.assertTrue(em.containsId)
 
-    def testClickFuzzOnlyIfSameStatus(self):
+    def testClickFuzzOnlyIfSameStatusDifferent(self):
         with self.mockUtilityCalls():
             cb, state, burpCallbacks = self._ctc()
 
-            cb.fuzzRequestModel = GenericMock()
+            state.executorService = GenericMock()
 
             em = GenericMock()
             em.fuzzed = False
@@ -651,17 +657,104 @@ class TestToolbox(unittest.TestCase):
             em.requests = [requestA, requestB]
             state.endpointTableModel.endpoints = {"GET|/lol": em}
             requestA.analyzedResponse.statusCode = 200
-            requestA.repeatedAnalizedResponse.statusCode = 403
+            requestA.repeatedAnalyzedResponse.statusCode = 403
 
             requestB.analyzedResponse.statusCode = 200
-            requestB.repeatedAnalizedResponse.statusCode = 403
+            requestB.repeatedAnalyzedResponse.statusCode = 403
 
             cb.fuzzButtonClicked(GenericMock())
 
-            self.assertEquals(cb.fuzzRequestModel.call_count, 0)
-            self.assertEquals(ui.log.call_count, 1)
+            self.assertEquals(state.executorService.submit.call_count, 0)
+
+    def testClickFuzzRepeatsIfNotRepeated(self):
+        with self.mockUtilityCalls():
+            cb, state, burpCallbacks = self._ctc()
+
+            em = GenericMock()
+            em.fuzzed = False
+
+            requestA = GenericMock()
+
+            em.requests = [requestA]
+            state.endpointTableModel.endpoints = {"GET|/lol": em}
+            requestA.analyzedResponse.statusCode = 200
+            requestA.repeatedAnalyzedResponse = None
+
+            cb.resendRequestModel = GenericMock()
+            try:
+                cb.fuzzButtonClicked(GenericMock())
+            except AttributeError:
+                pass
+
+            self.assertEquals(cb.resendRequestModel.call_count, 1)
+
+    def testClickFuzzMaxConcurrentRequests(self):
+        with self.mockUtilityCalls():
+            cb, state, burpCallbacks = self._ctc()
+
+            em = GenericMock()
+            em.fuzzed = False
+
+            state.executorService.submit.return_value.isDone = raise_exception
+
+            requestA = GenericMock()
+
+            em.requests = [requestA]
+            state.endpointTableModel.endpoints = {"GET|/l.ol": em,"GET|/lo<<l": em,"GET|/loOOl": em,"GET|/lJJol": em,"GET|/ZZZol": em,"GET|/loXXXl": em,"GET|/lasasCol": em,"GET|/lol1221": em,"GET|/lolASAS": em,"GET|/lddddol": em,"GET|/lolsss": em,"GET|/aaalol": em}
+            requestA.analyzedResponse.statusCode = 200
+            requestA.repeatedAnalyzedResponse.statusCode = 200
+
+            try:
+                cb.fuzzButtonClicked(GenericMock())
+            except TestException:
+                pass
+
+            self.assertEquals(state.executorService.submit.call_count, cb.maxConcurrentRequests)
+
+    def testClickFuzzMaxConcurrentRequestsOneMore(self):
+        with self.mockUtilityCalls():
+            cb, state, burpCallbacks = self._ctc()
+
+            em = GenericMock()
+            em.fuzzed = False
 
 
+            utility.nb_calls = 0
+            def return_true_once(*args, **kwargs):
+                if utility.nb_calls == 0:
+                    utility.nb_calls +=1
+                    return True
+                else:
+                    raise TestException()
+
+            state.executorService.submit.return_value.isDone = return_true_once
+
+            requestA = GenericMock()
+
+            em.requests = [requestA]
+            state.endpointTableModel.endpoints = {"GET|/l.ol": em,"GET|/lo<<l": em,"GET|/loOOl": em,"GET|/lJJol": em,"GET|/ZZZol": em,"GET|/loXXXl": em,"GET|/lasasCol": em,"GET|/lol1221": em,"GET|/lolASAS": em,"GET|/lddddol": em,"GET|/lolsss": em,"GET|/aaalol": em}
+            requestA.analyzedResponse.statusCode = 200
+            requestA.repeatedAnalyzedResponse.statusCode = 200
+
+            try:
+                cb.fuzzButtonClicked(GenericMock())
+            except TestException:
+                pass
+
+            self.assertEquals(state.executorService.submit.call_count, cb.maxConcurrentRequests + 1)
+
+    def testClickFuzzOnlyIfSameStatusSame(self):
+        with self.mockUtilityCalls():
+            cb, state, burpCallbacks = self._ctc()
+
+            em = GenericMock()
+            em.fuzzed = False
+
+            requestA = GenericMock()
+            requestB = GenericMock()
+
+            em.requests = [requestA, requestB]
+            state.endpointTableModel.endpoints = {"GET|/lol": em}
             requestA.analyzedResponse.statusCode = 200
             requestA.repeatedAnalyzedResponse.statusCode = 403
 
@@ -670,20 +763,7 @@ class TestToolbox(unittest.TestCase):
 
             cb.fuzzButtonClicked(GenericMock())
 
-            self.assertEquals(cb.fuzzRequestModel.call_count, 1)
-            self.assertEquals(ui.log.call_count, 1, "Should still be one")
-
-
-            requestA.analyzedResponse.statusCode = 200
-            requestA.repeatedAnalyzedResponse.statusCode = 200
-
-            requestB.analyzedResponse.statusCode = 200
-            requestB.repeatedAnalyzedResponse.statusCode = 200
-
-            cb.fuzzButtonClicked(GenericMock())
-
-            self.assertEquals(cb.fuzzRequestModel.call_count, 2, "Should only have increased by one.")
-            self.assertEquals(ui.log.call_count, 1, "Should still be one")
+            self.assertEquals(state.executorService.submit.call_count, 1)
 
     def testFuzzRequestModel(self):
         cb, state, burpCallbacks = self._ctc()
@@ -699,25 +779,6 @@ class TestToolbox(unittest.TestCase):
 
     def testPersistsMetadata(self):
         self.assertTrue(False)
-
-    def testFuzzRequestModel(self):
-        with self.mockUtilityCalls():
-            cb, state, burpCallbacks = self._ctc()
-
-            cb.burpCallbacks = BurpCallbacksMock()
-
-            request = GenericMock()
-
-            parameter = GenericMock()
-            parameter.name = "lol"
-            parameter.valueStart = 10
-            parameter.valueEnd = 12
-            request.httpRequestResponse.request = String("GET /lol HTTP/1.1\r\nHost:lel.com\r\n\r\n").getBytes()
-            request.analyzedRequest.parameters = [parameter]
-
-            cb.fuzzRequestModel(request)
-
-            self.assertTrue(False)
 
 if __name__ == '__main__':
     unittest.main()

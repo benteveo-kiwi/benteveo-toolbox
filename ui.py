@@ -373,6 +373,8 @@ class ToolboxCallbacks(NewThreadCaller):
         self.burpCallbacks = burpCallbacks
         self.lock = Lock()
 
+        self.maxConcurrentRequests = 8
+
         # Avoid instantiating during unit test as it is not needed.
         if not utility.INSIDE_UNIT_TEST:
             self.state.executorService = Executors.newFixedThreadPool(32)
@@ -620,11 +622,12 @@ class ToolboxCallbacks(NewThreadCaller):
         newResponse = self.burpCallbacks.makeHttpRequest(target, modifiedRequest)
         self.state.endpointTableModel.update(request, newResponse)
 
+
     def fuzzButtonClicked(self, event):
         """
         Handles clicks to the FUZZ button.
 
-        We attempt to fuzz only one request per endpoint, using our own criteria to differentiate between endpoints as defined in `EndpontTableModel.generateEndpointHash`. For each endpoint, we iterate through requests until we can find a single request whose status code is the same between both the original and the repeated request, we only fuzz once. Note this tool will only succeed if the user has run Resend ALL functionality.
+        We attempt to fuzz only one request per endpoint, using our own criteria to differentiate between endpoints as defined in `EndpontTableModel.generateEndpointHash`. For each endpoint, we iterate through requests until we can find a single request whose status code is the same between both the original and the repeated request, we only fuzz once. Note this tool will only succeed if the user has clicked the check button.
 
         Args:
             event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
@@ -638,8 +641,6 @@ class ToolboxCallbacks(NewThreadCaller):
         fuzzButton = event.source
         fuzzButton.setText("Fuzzing...")
 
-        maxConcurrentRequests = 8
-
         futures = []
         for key in endpoints:
             endpoint = endpoints[key]
@@ -651,11 +652,12 @@ class ToolboxCallbacks(NewThreadCaller):
             fuzzed = False
             for request in endpoint.requests:
 
-                while len(futures) >= maxConcurrentRequests:
+                while len(futures) >= self.maxConcurrentRequests:
                     self.sleep(1)
                     for future in futures:
                         if future.isDone():
                             futures.remove(future)
+                            break
 
                 if not request.repeatedAnalyzedResponse:
                     self.resendRequestModel(request)
@@ -718,6 +720,7 @@ class ToolboxCallbacks(NewThreadCaller):
             self.sleep(1)
             try:
                 issues = fastScan.doActiveScan(httpRequestResponse, insertionPoint)
+                break
             except java.lang.Exception:
                 retries -= 1
                 log("Java exception on BPS, retrying.")
