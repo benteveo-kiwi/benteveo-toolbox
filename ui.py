@@ -671,6 +671,7 @@ class ToolboxCallbacks(NewThreadCaller):
             self.checkMaxConcurrentRequests(futures, self.maxConcurrentRequests)
 
         self.checkMaxConcurrentRequests(futures, 1) # ensure all requests are `isDone()`
+        fuzzButton.setText("FUZZ")
 
     def checkMaxConcurrentRequests(self, futures, maxRequests):
         """
@@ -737,11 +738,10 @@ class ToolboxCallbacks(NewThreadCaller):
             self.sleep(1)
             try:
                 issues = fastScan.doActiveScan(httpRequestResponse, insertionPoint)
-                print issues
                 break
             except java.lang.Exception:
                 retries -= 1
-                logging.exception("Java exception on BPS, retrying.")
+                logging.exception("Java exception while fuzzing individual param, retrying it.")
 
         with self.lock:
             for issue in issues:

@@ -287,7 +287,7 @@ class EndpointTableModel(AbstractTableModel):
         """
         if columnIndex in [2, 3, 4]:
             return Integer(0).class
-        if columnIndex in [5]:
+        if columnIndex in [5, 6]:
             return Boolean(True).class
         else:
             return String("").class
