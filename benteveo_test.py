@@ -672,7 +672,7 @@ class TestToolbox(unittest.TestCase):
 
             self.assertEquals(state.executorService.submit.call_count, 0)
 
-    def testClickFuzzRepeatsIfNotRepeated(self):
+    def testClickFuzzRepeats(self):
         with self.mockUtilityCalls():
             cb, state, burpCallbacks = self._ctc()
 
@@ -692,7 +692,7 @@ class TestToolbox(unittest.TestCase):
             except AttributeError:
                 pass
 
-            self.assertEquals(cb.resendRequestModel.call_count, 1)
+            self.assertEquals(cb.resendRequestModel.call_count, 2)
 
     def testClickFuzzMaxConcurrentRequests(self):
         with self.mockUtilityCalls():
@@ -790,7 +790,6 @@ class TestToolbox(unittest.TestCase):
 
         self.assertTrue(classIsDone, "Calls is done.")
 
-
     def testPersistsMetadata(self):
         etm, state, callbacks = self._cetm()
         em = GenericMock()
@@ -852,6 +851,35 @@ class TestToolbox(unittest.TestCase):
 
             self.assertEquals(state.perRequestExecutorService.submit.call_count, 1)
             self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 1)
+
+    def testMarksEndpointsAsFuzzedOnlyIfReproducible(self):
+        with self.mockUtilityCalls():
+            cb, state, burpCallbacks = self._ctc()
+
+            em = GenericMock()
+            em.fuzzed = False
+            em.setFuzzed = GenericMock()
+            requestA = GenericMock()
+
+            utility.counter = 0
+            def wasReproducible():
+                if utility.counter == 0:
+                    utility.counter += 1
+                    return True
+                else:
+                    return False
+
+            requestA.wasReproducible = wasReproducible
+
+            em.requests = [requestA]
+            state.endpointTableModel.endpoints = {"GET|/lol": em}
+            requestA.analyzedResponse.statusCode = 200
+            requestA.repeatedAnalyzedResponse.statusCode = 200
+
+            cb.fuzzButtonClicked(GenericMock())
+
+            self.assertEquals(state.perRequestExecutorService.submit.call_count, 1)
+            self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 0)
 
 if __name__ == '__main__':
     unittest.main()

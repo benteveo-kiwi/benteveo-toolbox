@@ -128,6 +128,17 @@ class RequestModel(object):
             else:
                 return None
 
+    def wasReproducible(self):
+        """
+        Returns whether this requests could be reproduced last time it was resent.
+
+        Reproducible in this context means that the request reached the endpoint and was successfully authenticated by the target server. We use this criteria to determine whether it is worth it to fuzz the endpoint or we are just going to be fuzzing the 401 page.
+
+        Returns:
+            boolean: true if the request is reproducible.
+        """
+        return self.analyzedResponse.statusCode == self.repeatedAnalyzedResponse.statusCode
+
 class ReplacementRuleModel():
     def __init__(self, id, type, search, replacement):
         self.id = id

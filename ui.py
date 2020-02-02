@@ -654,13 +654,10 @@ class ToolboxCallbacks(NewThreadCaller):
 
             fuzzed = False
             for request in endpoint.requests:
-
-                if not request.repeatedAnalyzedResponse:
-                    self.resendRequestModel(request)
-
-                if request.analyzedResponse.statusCode == request.repeatedAnalyzedResponse.statusCode:
+                self.resendRequestModel(request)
+                if request.wasReproducible():
                     runnable = PythonFunctionRunnable(self.fuzzRequestModel, args=[request])
-                    futures.append((endpoint, self.state.perRequestExecutorService.submit(runnable)))
+                    futures.append((endpoint, request, self.state.perRequestExecutorService.submit(runnable)))
 
                     fuzzed = True
                     break
@@ -677,6 +674,8 @@ class ToolboxCallbacks(NewThreadCaller):
         """
         Blocking function that waits until we can make more requests.
 
+        It is in charge of marking requests as fuzzed once completed.
+
         Args:
             futures: futures as defined in `fuzzButtonClicked`
             maxRequests: maximum requests that should be pending at this time.
@@ -684,10 +683,14 @@ class ToolboxCallbacks(NewThreadCaller):
         while len(futures) >= maxRequests:
             self.sleep(1)
             for tuple in futures:
-                endpoint, future = tuple
+                endpoint, request, future = tuple
                 if future.isDone():
                     futures.remove(tuple)
-                    self.state.endpointTableModel.setFuzzed(endpoint, True)
+
+                    self.resendRequestModel(request)
+                    if request.wasReproducible():
+                        self.state.endpointTableModel.setFuzzed(endpoint, True)
+
                     break
 
     def fuzzRequestModel(self, request):

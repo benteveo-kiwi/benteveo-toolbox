@@ -421,7 +421,7 @@ class RequestTableModel(AbstractTableModel):
         if request.repeatedHttpRequestResponse:
             self.state.repeatedRequestViewer.setMessage(request.repeatedHttpRequestResponse.request, False)
             self.state.repeatedResponseViewer.setMessage(request.repeatedHttpRequestResponse.response, False)
-            self.state.repeatedHttpRequestResponse = request.httpRequestResponse
+            self.state.repeatedHttpRequestResponse = request.repeatedHttpRequestResponse
         else:
             self.state.repeatedRequestViewer.setMessage(String("").getBytes(), False)
             self.state.repeatedResponseViewer.setMessage(String("").getBytes(), False)
