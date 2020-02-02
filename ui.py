@@ -690,6 +690,9 @@ class ToolboxCallbacks(NewThreadCaller):
                     self.resendRequestModel(request)
                     if request.wasReproducible():
                         self.state.endpointTableModel.setFuzzed(endpoint, True)
+                        log("Finished fuzzing %s" % endpoint.url)
+                    else:
+                        log("Fuzzing complete but did not mark as fuzzed becauase no longer reproducible at %s." % endpoint.url)
 
                     break
 
@@ -704,6 +707,7 @@ class ToolboxCallbacks(NewThreadCaller):
         Args:
             request: an instance of RequestModel.
         """
+        self.sleep(0.2)
 
         fastScan = FastScan(self.burpCallbacks)
         parameters = request.repeatedAnalyzedRequest.parameters

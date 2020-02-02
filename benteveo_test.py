@@ -881,5 +881,8 @@ class TestToolbox(unittest.TestCase):
             self.assertEquals(state.perRequestExecutorService.submit.call_count, 1)
             self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 0)
 
+    def testFolderInsertionPoints(self):
+        self.assertTrue(False)
+
 if __name__ == '__main__':
     unittest.main()
