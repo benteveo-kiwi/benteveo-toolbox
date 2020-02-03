@@ -146,10 +146,12 @@ class TestToolbox(unittest.TestCase):
         apply_rules = ui.apply_rules
         get_header = ui.get_header
         log = ui.log
+        sendMessageToSlack = ui.sendMessageToSlack
 
         ui.apply_rules = GenericMock()
         ui.get_header = GenericMock()
         ui.log = GenericMock()
+        ui.sendMessageToSlack = GenericMock()
 
         ui.apply_rules.return_value = (False, None)
 
@@ -158,6 +160,7 @@ class TestToolbox(unittest.TestCase):
         ui.apply_rules = apply_rules
         ui.get_header = get_header
         ui.log = log
+        ui.sendMessageToSlack = sendMessageToSlack
 
     def _cem(self, method, url, dict=None):
         """
@@ -900,6 +903,7 @@ class TestToolbox(unittest.TestCase):
 
             self.assertEquals(state.perRequestExecutorService.submit.call_count, 1)
             self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 0)
+            self.assertEquals(ui.sendMessageToSlack.call_count, 1)
 
     def testGetInsertionPoints(self):
         cb, state, burpCallbacks = self._ctc()

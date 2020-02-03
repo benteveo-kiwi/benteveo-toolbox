@@ -643,6 +643,8 @@ class ToolboxCallbacks(NewThreadCaller):
             self.messageDialog("Confirm status check button says OK.")
             return
 
+        self.sentFailedMsgToSlack = False
+
         endpoints = self.state.endpointTableModel.endpoints
 
         fuzzButton = event.source
@@ -705,6 +707,9 @@ class ToolboxCallbacks(NewThreadCaller):
                         log("Finished fuzzing %s" % endpoint.url)
                     else:
                         log("Fuzzing complete but did not mark as fuzzed becauase no longer reproducible at %s." % endpoint.url)
+                        if not self.sentFailedMsgToSlack:
+                            sendMessageToSlack("A request was no longer reproducible after fuzzing. I think this means you need to fix my session plz.")
+                            self.sentFailedMsgToSlack = True
 
                     break
 
@@ -819,6 +824,7 @@ class ToolboxCallbacks(NewThreadCaller):
 
         with self.lock:
             for issue in issues:
+                sendMessageToSlack("Found something interesting! apparently '%s'. Do you want to check it out?" % (issue.issueName))
                 self.burpCallbacks.addScanIssue(issue)
 
     def sleep(self, sleepTime):

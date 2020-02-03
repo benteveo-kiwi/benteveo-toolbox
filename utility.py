@@ -1,7 +1,9 @@
 from java.util import ArrayList
 from java.util import Arrays
+import json
 import re
 import sys
+import urllib2
 
 # Constants for the add replacement form.
 REPLACE_HEADER_NAME = "Replace by header name"
@@ -132,6 +134,12 @@ def sendMessageToSlack(message):
     """
     Sends a message to the Benteveo Kiwi slack channel.
 
+    Doesn't use burps APIs so the request is not registered by burp.
+
     Args:
         message: the message to send.
     """
+    url = 'https://hooks.slack.com/services/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'
+    params = {'text': message}
+    req = urllib2.Request(url, headers = {"Content-Type": "application/json"}, data = json.dumps(params))
+    urllib2.urlopen(req)
