@@ -306,6 +306,23 @@ class TestToolbox(unittest.TestCase):
         self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].url, "http://www.example.org/users")
         self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].method, "GET")
 
+    def testAddEndpointTableModelMax100(self):
+        state = GenericMock()
+        callbacks = GenericMock()
+        etm = EndpointTableModel(state, callbacks)
+
+        ret = callbacks.helpers.analyzeRequest.return_value
+        ret.method = "GET"
+        ret.url = URL("http://www.example.org/users")
+
+        for a in range(200):
+            etm.add(GenericMock())
+
+        self.assertEqual(len(etm.endpoints), 1)
+        self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].url, "http://www.example.org/users")
+        self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].method, "GET")
+        self.assertEqual(len(etm.endpoints["GET|http://www.example.org/users"].requests), etm.maxRequests)
+
     def testAddEndpointTableModelWithQueryString(self):
         etm, state, callbacks = self._cetm()
 
@@ -777,7 +794,6 @@ class TestToolbox(unittest.TestCase):
         cb.fuzzRequestModel(GenericMock())
 
         self.assertEquals(ui.FastScan.call_count, 1)
-        self.assertEquals(burpCallbacks.helpers.makeScannerInsertionPoint.call_count, 3)
         self.assertEquals(state.executorService.submit.call_count, 3)
 
         state.executorService.submit.return_value.isDone = raise_exception
@@ -881,14 +897,32 @@ class TestToolbox(unittest.TestCase):
             self.assertEquals(state.perRequestExecutorService.submit.call_count, 1)
             self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 0)
 
-    def testFolderInsertionPoints(self):
+    def testGetInsertionPoints(self):
         cb, state, burpCallbacks = self._ctc()
 
         request = GenericMock()
-        cb.getInsertionPoints(request)
+        parameter = GenericMock()
+        parameter.name = "lol"
+        parameter.value = "lol"
+        parameter.type = 1
+        request.repeatedAnalyzedRequest.parameters = [parameter, parameter, parameter]
 
-    def testMax100Requests(self):
-        self.assertTrue(False)
+        insertionPoints = cb.getInsertionPoints(request)
+        self.assertEquals(len(insertionPoints), 3)
+
+    def testGetInsertionPointsFolder(self):
+        cb, state, burpCallbacks = self._ctc()
+
+        headers = ArrayList()
+        headers.add("GET /folder1/folder1/file.php HTTP/1.1")
+        headers.add("Host: example.org")
+
+        request = GenericMock()
+        request.repeatedAnalyzedRequest.parameters = []
+        request.repeatedAnalyzedRequest.headers = headers
+
+        insertionPoints = cb.getInsertionPoints(request)
+        self.assertEquals(len(insertionPoints), 3)
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,4 +1,4 @@
-from implementations import MessageEditorController, HttpService
+from implementations import MessageEditorController, HttpService, ScannerInsertionPoint
 from java.awt import BorderLayout
 from java.awt import Color
 from java.awt import Component
@@ -686,6 +686,7 @@ class ToolboxCallbacks(NewThreadCaller):
             for tuple in futures:
                 endpoint, request, future = tuple
                 if future.isDone():
+                    future.get()
                     futures.remove(tuple)
 
                     self.resendRequestModel(request)
@@ -716,7 +717,6 @@ class ToolboxCallbacks(NewThreadCaller):
 
         futures = []
         for insertionPoint in insertionPoints:
-            print(insertionPoint.name, insertionPoint.type)
             runnable = PythonFunctionRunnable(self.doActiveScan, args=[fastScan, request.httpRequestResponse, insertionPoint])
             futures.append(self.state.executorService.submit(runnable))
 
@@ -725,13 +725,14 @@ class ToolboxCallbacks(NewThreadCaller):
 
             for future in futures:
                 if future.isDone():
+                    future.get()
                     futures.remove(future)
 
     def getInsertionPoints(self, request):
         """
-        Gets IScannerInsertionPoint for indicating active scans. See https://portswigger.net/burp/extender/api/burp/IScannerInsertionPoint.html
+        Gets IScannerInsertionPoint for indicating active scan parameters. See https://portswigger.net/burp/extender/api/burp/IScannerInsertionPoint.html
 
-        Uses a custom implementation of the IScannerInsertionPoint because the default helper function at `makeScannerInsertionPoint` doesn't let you specify the parameter type.
+        Uses a custom implementation of the IScannerInsertionPoint because the default helper function at `makeScannerInsertionPoint` doesn't let you specify the parameter type. The parameter type is necessary to perform modifications to the payload in order to perform proper injection, such as not using unescaped quotes when inserting into a JSON object as this will result in a syntax error.
 
         Args:
             request: the request to generate insertion points for.
@@ -740,10 +741,8 @@ class ToolboxCallbacks(NewThreadCaller):
 
         insertionPoints = []
         for parameter in parameters:
-            insertionPoints.append(self.burpCallbacks.helpers.makeScannerInsertionPoint(parameter.name,
-                request.repeatedHttpRequestResponse.request,
-                parameter.valueStart,
-                parameter.valueEnd))
+            insertionPoint = ScannerInsertionPoint(self.burpCallbacks, request.repeatedHttpRequestResponse.request, parameter.name, parameter.value, parameter.type, parameter.valueStart, parameter.valueEnd)
+            insertionPoints.append(insertionPoint)
 
         return insertionPoints
 

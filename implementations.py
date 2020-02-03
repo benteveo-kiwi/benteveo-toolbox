@@ -132,26 +132,27 @@ class ExtensionStateListener(IExtensionStateListener):
 
 
 class ScannerInsertionPoint(IScannerInsertionPoint):
-    def __init__(self, callbacks, request, name, value, type):
+    def __init__(self, callbacks, request, name, value, type, start, end):
         self.callbacks = callbacks
         self.request = request
         self.name = name
         self.value = value
-        set.type = type
+        self.type = type
+        self.start = start
+        self.end = end
 
     def getInsertionPointName(self):
         return self.name
 
     def getBaseValue(self):
-        return value
+        return self.value
 
-    def buildRequest(payload):
-        newParam = self.callbacks.helpers.buildParameter(self.name, self.callback.helpers.bytesToString(payload), self.type)
-        return self.callback.helpers.updateParameter(self.request, newParam)
+    def buildRequest(self, payload):
+        newParam = self.callbacks.helpers.buildParameter(self.name, self.callbacks.helpers.bytesToString(payload), self.type)
+        return self.callbacks.helpers.updateParameter(self.request, newParam)
 
-    def getPayloadOffsets(payload):
-        print "getPayloadOffsets1!!!!!!!!!!"
-        return [0, 0]
+    def getPayloadOffsets(self, payload):
+        return [self.start, self.end]
 
     def getInsertionPointType(self):
         return self.type

@@ -107,6 +107,7 @@ class EndpointTableModel(AbstractTableModel):
         self.state = state
         self.callbacks = callbacks
         self.endpoints = OrderedDict()
+        self.maxRequests = 100
 
     def generateEndpointHash(self, analyzedRequest):
         """
@@ -191,7 +192,7 @@ class EndpointTableModel(AbstractTableModel):
             httpRequestResponse: an HttpRequestResponse java object as returned by burp.
 
         Return:
-            boolean: whether the request was added or not. It is not added if method is options or if there is no response stored for the original request.
+            boolean: whether the request was added or not. It is not added if method is OPTIONS, if there is no response stored for the original request, or if there are too many requests for this endpoint already.
         """
 
         with self.lock:
@@ -211,12 +212,15 @@ class EndpointTableModel(AbstractTableModel):
             if hash not in self.endpoints:
                 self.endpoints[hash] = EndpointModel(method, url, fuzzed)
 
-            self.endpoints[hash].add(RequestModel(httpRequestResponse, self.callbacks))
+            if self.endpoints[hash].nb < self.maxRequests:
+                self.endpoints[hash].add(RequestModel(httpRequestResponse, self.callbacks))
 
-            added_at_index = len(self.endpoints)
-            self.fireTableRowsInserted(added_at_index - 1, added_at_index - 1)
+                added_at_index = len(self.endpoints)
+                self.fireTableRowsInserted(added_at_index - 1, added_at_index - 1)
 
-            return True
+                return True
+            else:
+                return False
 
     def clear(self):
         """
