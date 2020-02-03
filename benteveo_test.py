@@ -7,7 +7,7 @@ from java.util import ArrayList
 from models import EndpointModel, RequestModel, ReplacementRuleModel
 from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableModel
 from ui import ToolboxCallbacks, STATUS_OK, STATUS_FAILED
-from burp import IBurpExtenderCallbacks, IExtensionHelpers
+from burp import IBurpExtenderCallbacks, IExtensionHelpers, IScannerInsertionPoint
 import contextlib
 import math
 import operator
@@ -910,7 +910,7 @@ class TestToolbox(unittest.TestCase):
         insertionPoints = cb.getInsertionPoints(request)
         self.assertEquals(len(insertionPoints), 3)
 
-    def testGetInsertionPointsFolder(self):
+    def testGetInsertionPointsPath(self):
         cb, state, burpCallbacks = self._ctc()
 
         headers = ArrayList()
@@ -923,6 +923,9 @@ class TestToolbox(unittest.TestCase):
 
         insertionPoints = cb.getInsertionPoints(request)
         self.assertEquals(len(insertionPoints), 3)
+        self.assertEquals(insertionPoints[0].type, IScannerInsertionPoint.INS_URL_PATH_FOLDER)
+        self.assertEquals(insertionPoints[1].type, IScannerInsertionPoint.INS_URL_PATH_FOLDER)
+        self.assertEquals(insertionPoints[2].type, IScannerInsertionPoint.INS_URL_PATH_FILENAME)
 
 if __name__ == '__main__':
     unittest.main()

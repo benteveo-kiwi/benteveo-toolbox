@@ -1,3 +1,4 @@
+from burp import IScannerInsertionPoint
 from implementations import MessageEditorController, HttpService, ScannerInsertionPoint
 from java.awt import BorderLayout
 from java.awt import Color
@@ -323,7 +324,7 @@ class PythonFunctionRunnable(Runnable):
         try:
             self.method(*self.args, **self.kwargs)
         except ShutdownException:
-            print "Thread shutting down"
+            log("Thread shutting down")
             raise
         except:
             logging.exception("Exception in thread")
@@ -752,7 +753,47 @@ class ToolboxCallbacks(NewThreadCaller):
             insertionPoint = ScannerInsertionPoint(self.burpCallbacks, request.repeatedHttpRequestResponse.request, parameter.name, parameter.value, parameter.type, parameter.valueStart, parameter.valueEnd)
             insertionPoints.append(insertionPoint)
 
+        for pathInsertionPoint in self.getPathInsertionPoints(request):
+            insertionPoints.append(pathInsertionPoint)
+
         return insertionPoints
+
+    def getPathInsertionPoints(self, request):
+        """
+        Gets folder insertion points.
+
+        This means that for a URL such as /folder/folder/file.php it would generate three insertion points: one for each folder and one for the filename.
+
+        Args:
+            request: the request to generate the insertion points for.
+
+        Return:
+            list: the IScannerInsertionPoint objects.
+        """
+        firstLine = request.repeatedAnalyzedRequest.headers[0]
+        startOffset = None
+        endOffset = None
+        insertionPoints = []
+        for offset, char in enumerate(firstLine):
+            if char in ["/", " "]:
+                if not startOffset:
+                    if char == "/":
+                        startOffset = offset + 1
+                else:
+                    endOffset = offset
+                    value = firstLine[startOffset:endOffset]
+                    type = IScannerInsertionPoint.INS_URL_PATH_FOLDER if char == "/" else IScannerInsertionPoint.INS_URL_PATH_FILENAME
+
+                    insertionPoint = ScannerInsertionPoint(self.burpCallbacks, request.repeatedHttpRequestResponse.request, "pathParam", value, type, startOffset, endOffset)
+
+                    insertionPoints.append(insertionPoint)
+                    startOffset = offset + 1
+
+                    if char == " ":
+                        break
+
+        return insertionPoints
+
 
     def doActiveScan(self, fastScan, httpRequestResponse, insertionPoint):
         """
