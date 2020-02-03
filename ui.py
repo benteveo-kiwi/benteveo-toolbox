@@ -10,7 +10,7 @@ from java.lang import Class
 from java.lang import Runnable
 from java.lang import String
 from java.lang import Thread
-from java.util.concurrent import Executors
+from java.util.concurrent import Executors, ExecutionException
 from javax.swing import BorderFactory
 from javax.swing import Box
 from javax.swing import BoxLayout
@@ -324,8 +324,10 @@ class PythonFunctionRunnable(Runnable):
             self.method(*self.args, **self.kwargs)
         except ShutdownException:
             print "Thread shutting down"
+            raise
         except:
             logging.exception("Exception in thread")
+            raise
 
 class NewThreadCaller(object):
     """
@@ -686,8 +688,14 @@ class ToolboxCallbacks(NewThreadCaller):
             for tuple in futures:
                 endpoint, request, future = tuple
                 if future.isDone():
-                    future.get()
                     futures.remove(tuple)
+
+                    try:
+                        future.get()
+                    except ExecutionException:
+                        log("Failed to fuzz %s" % endpoint.url)
+                        logging.exception("Failure fuzzing %s" % endpoint.url)
+                        break
 
                     self.resendRequestModel(request)
                     if request.wasReproducible():
