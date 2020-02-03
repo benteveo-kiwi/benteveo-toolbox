@@ -1,7 +1,7 @@
 from benteveo_toolbox import BurpExtender
 from collections import OrderedDict
 from java.awt import Component
-from java.lang import String
+from java.lang import String, IllegalArgumentException
 from java.net import URL
 from java.util import ArrayList
 from models import EndpointModel, RequestModel, ReplacementRuleModel
@@ -926,6 +926,45 @@ class TestToolbox(unittest.TestCase):
         self.assertEquals(insertionPoints[0].type, IScannerInsertionPoint.INS_URL_PATH_FOLDER)
         self.assertEquals(insertionPoints[1].type, IScannerInsertionPoint.INS_URL_PATH_FOLDER)
         self.assertEquals(insertionPoints[2].type, IScannerInsertionPoint.INS_URL_PATH_FILENAME)
+
+    def testBuildRequest(self):
+        cb, state, burpCallbacks = self._ctc()
+
+        firstLine = "GET /folder1/folder1/file.php HTTP/1.1"
+        secondLine = "Host: example.org"
+
+        headers = ArrayList()
+        headers.add(firstLine)
+        headers.add(secondLine)
+
+
+        request = GenericMock()
+        request.repeatedAnalyzedRequest.parameters = []
+        request.repeatedAnalyzedRequest.headers = headers
+        request.repeatedHttpRequestResponse.request = String(firstLine + "\r\n" + secondLine + "\r\n").getBytes()
+
+        utility.called = False
+        def raises(*args):
+            utility.called = True
+            raise IllegalArgumentException()
+
+        burpCallbacks.helpers.updateParameter = raises
+
+        insertionPoints = cb.getInsertionPoints(request)
+
+        ret = insertionPoints[0].buildRequest(String("LOLLOLLOL").getBytes())
+
+        self.assertTrue(utility.called)
+        self.assertTrue(str(String(ret)).startswith("GET /LOLLOLLOL/folder1/file.php HTTP/1.1"))
+
+        ret = insertionPoints[1].buildRequest(String("LOLLOLLOL").getBytes())
+        self.assertTrue(str(String(ret)).startswith("GET /folder1/LOLLOLLOL/file.php HTTP/1.1"))
+
+        ret = insertionPoints[2].buildRequest(String("LOLLOLLOL").getBytes())
+        self.assertTrue(str(String(ret)).startswith("GET /folder1/folder1/LOLLOLLOL HTTP/1.1"))
+
+
+
 
 if __name__ == '__main__':
     unittest.main()

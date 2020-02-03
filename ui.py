@@ -814,7 +814,7 @@ class ToolboxCallbacks(NewThreadCaller):
                 break
             except java.lang.Exception:
                 retries -= 1
-                logging.exception("Java exception while fuzzing individual param, retrying it.")
+                logging.exception("Java exception while fuzzing individual param, retrying it. %d retries left." % retries)
 
         with self.lock:
             for issue in issues:
