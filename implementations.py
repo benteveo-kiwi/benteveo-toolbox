@@ -5,8 +5,9 @@ from burp import IMessageEditorController
 from burp import IScannerInsertionPoint
 from burp import ITab
 from java.io import ByteArrayOutputStream
-from java.lang import IllegalArgumentException
+from java.lang import IllegalArgumentException, UnsupportedOperationException, String
 from utility import log
+import json
 
 class Tab(ITab):
     def __init__(self, splitpane):
@@ -181,16 +182,46 @@ class ScannerInsertionPoint(IScannerInsertionPoint):
         Args:
             payload: the active scanner payload provided by the extension.
         """
+
+        start = self.start
+        end = self.end
+
         try:
             newParam = self.callbacks.helpers.buildParameter(self.name, self.callbacks.helpers.bytesToString(payload), self.type)
             return self.callbacks.helpers.updateParameter(self.request, newParam)
-        except IllegalArgumentException:
+        except (IllegalArgumentException, UnsupportedOperationException):
+            if self.type == IScannerInsertionPoint.INS_PARAM_JSON:
+                start, end, payload = self.encodeJson(start, end, payload)
+
             stream = ByteArrayOutputStream()
-            stream.write(self.request[0:self.start])
+            stream.write(self.request[0:start])
             stream.write(payload)
-            stream.write(self.request[self.end:])
+            stream.write(self.request[end:])
 
             return stream.toByteArray()
+
+    def encodeJson(self, start, end, payload):
+        """
+        Encodes payload so that it will not break the JSON payload.
+
+        Args:
+            start: the start position of the value
+            end: the end position of the value
+            payload: the payload that the extension wishes to insert.
+
+        Returns:
+            tuple: (start, end, payload) after modifications have been made to account for the particularities of JSON encoding.
+        """
+        payloadString = str(String(payload))
+        payload = String(json.dumps(payloadString)).getBytes()
+
+        if chr(self.request[start-1]) == '"':
+            # accommodate for the quotes that dumps adds.
+            start -= 1
+            end += 1
+
+        return start, end, payload
+
 
     def getPayloadOffsets(self, payload):
         return [self.start, self.start + len(payload)]

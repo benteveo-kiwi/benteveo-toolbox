@@ -1,13 +1,14 @@
 from benteveo_toolbox import BurpExtender
+from burp import IBurpExtenderCallbacks, IExtensionHelpers, IScannerInsertionPoint
 from collections import OrderedDict
+from implementations import ScannerInsertionPoint
 from java.awt import Component
-from java.lang import String, IllegalArgumentException
+from java.lang import String, IllegalArgumentException, UnsupportedOperationException, Class
 from java.net import URL
 from java.util import ArrayList
 from models import EndpointModel, RequestModel, ReplacementRuleModel
 from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableModel
 from ui import ToolboxCallbacks, STATUS_OK, STATUS_FAILED
-from burp import IBurpExtenderCallbacks, IExtensionHelpers, IScannerInsertionPoint
 import contextlib
 import math
 import operator
@@ -16,7 +17,6 @@ import unittest
 import utility
 
 utility.INSIDE_UNIT_TEST = True
-
 
 class GenericMock(object):
     """
@@ -54,8 +54,12 @@ class GenericMock(object):
         """
         This method is called when the object is invoked as a function.
 
-        It records the number of times it was called as well as the arguments it was called with the last time. It returns the `return_value` property so that users of this api can mock the return value of the function.
+        It records the number of times it was called as well as the arguments it was called with the last time. It returns the `return_value` property so that users of this api can mock the return value of the function. If `raise` is an exception on this object, we raise that value.
         """
+
+        if type(self.raise) == Exception or type(self.raise) == Class:
+            raise self.raise
+
         self.call_count += 1
         self.call_args = args
         return self.return_value
@@ -927,7 +931,7 @@ class TestToolbox(unittest.TestCase):
         self.assertEquals(insertionPoints[1].type, IScannerInsertionPoint.INS_URL_PATH_FOLDER)
         self.assertEquals(insertionPoints[2].type, IScannerInsertionPoint.INS_URL_PATH_FILENAME)
 
-    def testBuildRequest(self):
+    def testBuildRequestPath(self):
         cb, state, burpCallbacks = self._ctc()
 
         firstLine = "GET /folder1/folder1/file.php HTTP/1.1"
@@ -963,8 +967,35 @@ class TestToolbox(unittest.TestCase):
         ret = insertionPoints[2].buildRequest(String("LOLLOLLOL").getBytes())
         self.assertTrue(str(String(ret)).startswith("GET /folder1/folder1/LOLLOLLOL HTTP/1.1"))
 
+    def testBuildRequestJson(self):
+        callbacks = GenericMock()
 
+        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: lelel\r\n\r\n{\"param\":\"value\"}\r\n").getBytes()
 
+        callbacks.helpers.updateParameter.raise = UnsupportedOperationException
+
+        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_JSON, 65, 70)
+
+        ret = sip.buildRequest(String("lol").getBytes())
+        self.assertTrue('{"param":"lol"}' in str(String(ret)))
+
+        ret = sip.buildRequest(String("herecomethe\"quotes").getBytes())
+        self.assertTrue('{"param":"herecomethe\\"quotes"}' in str(String(ret)))
+
+    def testBuildRequestJsonNumbers(self):
+        callbacks = GenericMock()
+
+        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: lelel\r\n\r\n{\"param\":1234}\r\n").getBytes()
+
+        callbacks.helpers.updateParameter.raise = UnsupportedOperationException
+
+        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_JSON, 64, 68)
+
+        ret = sip.buildRequest(String("lol").getBytes())
+        self.assertTrue('{"param":"lol"}' in str(String(ret)))
+
+        ret = sip.buildRequest(String("herecomethe\"quotes").getBytes())
+        self.assertTrue('{"param":"herecomethe\\"quotes"}' in str(String(ret)))
 
 if __name__ == '__main__':
     unittest.main()
