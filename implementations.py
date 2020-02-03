@@ -133,7 +133,6 @@ class ExtensionStateListener(IExtensionStateListener):
         self.state.shutdown = True
         log("Successfully shut down.")
 
-
 class ScannerInsertionPoint(IScannerInsertionPoint):
     """
     Custom implementation of ScannerInsertionPoint.
@@ -198,7 +197,24 @@ class ScannerInsertionPoint(IScannerInsertionPoint):
             stream.write(payload)
             stream.write(self.request[end:])
 
-            return stream.toByteArray()
+            newRequestBytes = self.updateContentLength(stream.toByteArray())
+
+            return newRequestBytes
+
+    def updateContentLength(self, request):
+        """
+        Updates the request so that it has the correct content-length header for its body size.
+
+        Args:
+            request: the request bytes.
+
+        Return:
+            byte[]: the modified request
+        """
+        analyzedRequest = self.callbacks.helpers.analyzeRequest(request)
+        newRequest = self.callbacks.helpers.buildHttpMessage(analyzedRequest.headers, request[analyzedRequest.bodyOffset:])
+
+        return newRequest
 
     def encodeJson(self, start, end, payload):
         """
@@ -221,7 +237,6 @@ class ScannerInsertionPoint(IScannerInsertionPoint):
             end += 1
 
         return start, end, payload
-
 
     def getPayloadOffsets(self, payload):
         return [self.start, self.start + len(payload)]

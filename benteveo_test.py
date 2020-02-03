@@ -956,6 +956,10 @@ class TestToolbox(unittest.TestCase):
 
         insertionPoints = cb.getInsertionPoints(request)
 
+        insertionPoints[0].updateContentLength = lambda x: x
+        insertionPoints[1].updateContentLength = lambda x: x
+        insertionPoints[2].updateContentLength = lambda x: x
+
         ret = insertionPoints[0].buildRequest(String("LOLLOLLOL").getBytes())
 
         self.assertTrue(utility.called)
@@ -975,6 +979,7 @@ class TestToolbox(unittest.TestCase):
         callbacks.helpers.updateParameter.raise = UnsupportedOperationException
 
         sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_JSON, 65, 70)
+        sip.updateContentLength = lambda x: x
 
         ret = sip.buildRequest(String("lol").getBytes())
         self.assertTrue('{"param":"lol"}' in str(String(ret)))
@@ -985,17 +990,32 @@ class TestToolbox(unittest.TestCase):
     def testBuildRequestJsonNumbers(self):
         callbacks = GenericMock()
 
-        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: lelel\r\n\r\n{\"param\":1234}\r\n").getBytes()
+        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: 16\r\n\r\n{\"param\":1234}\r\n").getBytes()
 
         callbacks.helpers.updateParameter.raise = UnsupportedOperationException
 
-        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_JSON, 64, 68)
+        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_JSON, 61, 65)
+        sip.updateContentLength = lambda x: x
 
         ret = sip.buildRequest(String("lol").getBytes())
         self.assertTrue('{"param":"lol"}' in str(String(ret)))
 
         ret = sip.buildRequest(String("herecomethe\"quotes").getBytes())
         self.assertTrue('{"param":"herecomethe\\"quotes"}' in str(String(ret)))
+
+    def testBuildRequestUpdatesContentLength(self):
+        callbacks = GenericMock()
+
+        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: 16\r\n\r\n{\"param\":1234}\r\n").getBytes()
+
+        callbacks.helpers.updateParameter.raise = UnsupportedOperationException
+
+        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_JSON, 61, 65)
+        sip.updateContentLength = GenericMock()
+
+        ret = sip.buildRequest(String("lol").getBytes())
+
+        self.assertEquals(sip.updateContentLength.call_count, 1)
 
 if __name__ == '__main__':
     unittest.main()

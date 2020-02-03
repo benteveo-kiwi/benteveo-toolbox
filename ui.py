@@ -29,7 +29,7 @@ from javax.swing import JTextField
 from javax.swing import SwingUtilities
 from tables import Table, CellHighlighterRenderer, TableMouseAdapter
 from threading import Lock
-from utility import apply_rules, get_header, log
+from utility import apply_rules, get_header, log, sendMessageToSlack
 from utility import REPLACE_HEADER_NAME, NoSuchHeaderException
 import jarray
 import java.lang.Exception
@@ -658,6 +658,7 @@ class ToolboxCallbacks(NewThreadCaller):
 
             fuzzed = False
             for request in endpoint.requests:
+                self.sleep(0.2)
                 self.resendRequestModel(request)
                 if request.wasReproducible():
                     runnable = PythonFunctionRunnable(self.fuzzRequestModel, args=[request])

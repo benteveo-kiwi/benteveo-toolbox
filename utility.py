@@ -127,3 +127,11 @@ def log(message):
 def importJavaDependency(source):
     if source not in sys.path:
         sys.path.append(source)
+
+def sendMessageToSlack(message):
+    """
+    Sends a message to the Benteveo Kiwi slack channel.
+
+    Args:
+        message: the message to send.
+    """
