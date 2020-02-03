@@ -3,6 +3,7 @@ from burp import IHttpListener
 from burp import IMessageEditorController
 from burp import IHttpService
 from burp import IExtensionStateListener
+from burp import IScannerInsertionPoint
 from utility import log
 
 class Tab(ITab):
@@ -128,3 +129,29 @@ class ExtensionStateListener(IExtensionStateListener):
         self.state.perRequestExecutorService.shutdown()
         self.state.shutdown = True
         log("Successfully shut down.")
+
+
+class ScannerInsertionPoint(IScannerInsertionPoint):
+    def __init__(self, callbacks, request, name, value, type):
+        self.callbacks = callbacks
+        self.request = request
+        self.name = name
+        self.value = value
+        set.type = type
+
+    def getInsertionPointName(self):
+        return self.name
+
+    def getBaseValue(self):
+        return value
+
+    def buildRequest(payload):
+        newParam = self.callbacks.helpers.buildParameter(self.name, self.callback.helpers.bytesToString(payload), self.type)
+        return self.callback.helpers.updateParameter(self.request, newParam)
+
+    def getPayloadOffsets(payload):
+        print "getPayloadOffsets1!!!!!!!!!!"
+        return [0, 0]
+
+    def getInsertionPointType(self):
+        return self.type

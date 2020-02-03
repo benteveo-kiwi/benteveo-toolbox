@@ -882,6 +882,12 @@ class TestToolbox(unittest.TestCase):
             self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 0)
 
     def testFolderInsertionPoints(self):
+        cb, state, burpCallbacks = self._ctc()
+
+        request = GenericMock()
+        cb.getInsertionPoints(request)
+
+    def testMax100Requests(self):
         self.assertTrue(False)
 
 if __name__ == '__main__':

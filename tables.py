@@ -10,6 +10,7 @@ from javax.swing.table import AbstractTableModel
 from javax.swing.table import DefaultTableCellRenderer
 from models import EndpointModel, RequestModel, ReplacementRuleModel
 from threading import Lock
+from java.awt.event import MouseAdapter
 import json
 import logging
 import sys
@@ -44,6 +45,21 @@ class Table(JTable):
             self.model.selectRow(self.convertRowIndexToModel(row))
         except:
             logging.exception("Exception in selectRow")
+
+
+class TableMouseAdapter(MouseAdapter):
+
+    def mouseClicked(self, event):
+        table = event.getSource()
+        endpointTableModel = table.getModel()
+
+        rowIndex = table.rowAtPoint(event.point)
+        columnIndex = table.columnAtPoint(event.point)
+
+        if columnIndex == 6:
+            endpoint = endpointTableModel.getEndpoint(table.convertRowIndexToModel(rowIndex))
+            newValue = False if endpoint.fuzzed else True
+            endpointTableModel.setFuzzed(endpoint, newValue)
 
 class CellHighlighterRenderer(DefaultTableCellRenderer):
 

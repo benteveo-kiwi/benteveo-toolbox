@@ -26,7 +26,7 @@ from javax.swing import JTable
 from javax.swing import JTextArea
 from javax.swing import JTextField
 from javax.swing import SwingUtilities
-from tables import Table, CellHighlighterRenderer
+from tables import Table, CellHighlighterRenderer, TableMouseAdapter
 from threading import Lock
 from utility import apply_rules, get_header, log
 from utility import REPLACE_HEADER_NAME, NoSuchHeaderException
@@ -244,6 +244,7 @@ class ToolboxUI():
         endpointTable.getColumnModel().getColumn(0).setPreferredWidth(15)
         endpointTable.getColumnModel().getColumn(1).setPreferredWidth(500)
         endpointTable.setAutoCreateRowSorter(True)
+        endpointTable.addMouseListener(TableMouseAdapter())
 
         endpointView = JScrollPane(endpointTable)
         callbacks.customizeUiComponent(endpointTable)
@@ -710,15 +711,12 @@ class ToolboxCallbacks(NewThreadCaller):
         self.sleep(0.2)
 
         fastScan = FastScan(self.burpCallbacks)
-        parameters = request.repeatedAnalyzedRequest.parameters
+
+        insertionPoints = self.getInsertionPoints(request)
 
         futures = []
-        for parameter in parameters:
-            insertionPoint = self.burpCallbacks.helpers.makeScannerInsertionPoint(parameter.name,
-                request.repeatedHttpRequestResponse.request,
-                parameter.valueStart,
-                parameter.valueEnd)
-
+        for insertionPoint in insertionPoints:
+            print(insertionPoint.name, insertionPoint.type)
             runnable = PythonFunctionRunnable(self.doActiveScan, args=[fastScan, request.httpRequestResponse, insertionPoint])
             futures.append(self.state.executorService.submit(runnable))
 
@@ -728,6 +726,26 @@ class ToolboxCallbacks(NewThreadCaller):
             for future in futures:
                 if future.isDone():
                     futures.remove(future)
+
+    def getInsertionPoints(self, request):
+        """
+        Gets IScannerInsertionPoint for indicating active scans. See https://portswigger.net/burp/extender/api/burp/IScannerInsertionPoint.html
+
+        Uses a custom implementation of the IScannerInsertionPoint because the default helper function at `makeScannerInsertionPoint` doesn't let you specify the parameter type.
+
+        Args:
+            request: the request to generate insertion points for.
+        """
+        parameters = request.repeatedAnalyzedRequest.parameters
+
+        insertionPoints = []
+        for parameter in parameters:
+            insertionPoints.append(self.burpCallbacks.helpers.makeScannerInsertionPoint(parameter.name,
+                request.repeatedHttpRequestResponse.request,
+                parameter.valueStart,
+                parameter.valueEnd))
+
+        return insertionPoints
 
     def doActiveScan(self, fastScan, httpRequestResponse, insertionPoint):
         """
