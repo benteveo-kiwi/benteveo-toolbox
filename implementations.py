@@ -7,7 +7,12 @@ from burp import ITab
 from java.io import ByteArrayOutputStream
 from java.lang import IllegalArgumentException, UnsupportedOperationException, String
 from utility import log
+import utility
 import json
+
+utility.importJavaDependency("lib/backslash-powered-scanner-fork.jar")
+
+from burp import Utilities
 
 class Tab(ITab):
     def __init__(self, splitpane):
@@ -131,6 +136,7 @@ class ExtensionStateListener(IExtensionStateListener):
         self.state.executorService.shutdown()
         self.state.perRequestExecutorService.shutdown()
         self.state.shutdown = True
+        Utilities.unloaded.set(True)
         log("Successfully shut down.")
 
 class ScannerInsertionPoint(IScannerInsertionPoint):
@@ -185,21 +191,19 @@ class ScannerInsertionPoint(IScannerInsertionPoint):
         start = self.start
         end = self.end
 
-        try:
-            newParam = self.callbacks.helpers.buildParameter(self.name, self.callbacks.helpers.bytesToString(payload), self.type)
-            return self.callbacks.helpers.updateParameter(self.request, newParam)
-        except (IllegalArgumentException, UnsupportedOperationException):
-            if self.type == IScannerInsertionPoint.INS_PARAM_JSON:
-                start, end, payload = self.encodeJson(start, end, payload)
+        if self.type == IScannerInsertionPoint.INS_PARAM_JSON:
+            start, end, payload = self.encodeJson(start, end, payload)
+        else:
+            start, end, payload = self.encodeUrl(start, end, payload)
 
-            stream = ByteArrayOutputStream()
-            stream.write(self.request[0:start])
-            stream.write(payload)
-            stream.write(self.request[end:])
+        stream = ByteArrayOutputStream()
+        stream.write(self.request[0:start])
+        stream.write(payload)
+        stream.write(self.request[end:])
 
-            newRequestBytes = self.updateContentLength(stream.toByteArray())
+        newRequestBytes = self.updateContentLength(stream.toByteArray())
 
-            return newRequestBytes
+        return newRequestBytes
 
     def updateContentLength(self, request):
         """
@@ -237,6 +241,20 @@ class ScannerInsertionPoint(IScannerInsertionPoint):
             end += 1
 
         return start, end, payload
+
+    def encodeUrl(self, start, end, payload):
+        """
+        Encodes payload so that it will not break the JSON payload.
+
+        Args:
+            start: the start position of the value
+            end: the end position of the value
+            payload: the payload that the extension wishes to insert.
+
+        Returns:
+            tuple: (start, end, payload) after modifications have been made to account for the particularities of URL encoding.
+        """
+        return start, end, self.callbacks.helpers.urlEncode(payload)
 
     def getPayloadOffsets(self, payload):
         return [self.start, self.start + len(payload)]

@@ -699,7 +699,7 @@ class ToolboxCallbacks(NewThreadCaller):
                     except ExecutionException:
                         log("Failed to fuzz %s" % endpoint.url)
                         logging.exception("Failure fuzzing %s" % endpoint.url)
-                        break
+                        continue
 
                     self.resendRequestModel(request)
                     if request.wasReproducible():
@@ -710,8 +710,6 @@ class ToolboxCallbacks(NewThreadCaller):
                         if not self.sentFailedMsgToSlack:
                             sendMessageToSlack("A request was no longer reproducible after fuzzing. I think this means you need to fix my session plz.")
                             self.sentFailedMsgToSlack = True
-
-                    break
 
     def fuzzRequestModel(self, request):
         """
