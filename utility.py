@@ -14,6 +14,7 @@ regex = [
     re.compile("[0-9]{13}-[a-f0-9]{64}"), # 1579636429347-c568eba49ad17ef37b9db4ea42466b71e065481ddbc2f5a63503719c44dfb6ee
     re.compile("S-1.*"), # S-1-5-21-2931253742-2981233768-3707659581-1108%26d-90670d8a68
     re.compile("^[0-9]+$"), # 121251251
+    re.compile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"), # 1da4b1de-c0af-4e11-8d44-97de90728db3
 ]
 
 class NoSuchHeaderException(Exception):
@@ -33,6 +34,7 @@ def apply_rules(callbacks, rules, request):
     """
     modified = False
     nbModifications = 0
+    print rules
     for rule in rules:
         if rule.type == REPLACE_HEADER_NAME:
             modified, newRequest = replace_header_name(callbacks, rule, request)
@@ -62,11 +64,11 @@ def replace_header_name(callbacks, rule, request):
     modified = False
     newHeaders = ArrayList()
     for header in headers:
-        try:
-            name, value = header.split(":")
-        except ValueError:
-            newHeaders.add(header)
-            continue # Always happens on the first line of the request.
+        splat = header.split(":")
+        if len(splat) >= 2:
+            name, value = splat[0], splat[1]
+        else:
+            continue # First line of header doesn't have ":"
 
         if name.lower().strip() == rule.search.lower().strip():
             newHeaders.add("%s: %s" % (name, rule.replacement))

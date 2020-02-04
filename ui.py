@@ -399,7 +399,6 @@ class ToolboxCallbacks(NewThreadCaller):
         self.burpCallbacks.saveExtensionSetting("scopes", scopes)
 
         scope_urls = scopes.split("\n")
-        nbRequests = 0
         for url in scope_urls:
             url = url.strip()
             if not url:
@@ -407,12 +406,10 @@ class ToolboxCallbacks(NewThreadCaller):
 
             requests = self.burpCallbacks.getSiteMap(url)
             for request in requests:
-                added = self.state.endpointTableModel.add(request)
-                if added:
-                    nbRequests += 1
+                self.state.endpointTableModel.add(request)
 
         button = event.source
-        button.setText("Refreshed (%s)" % (str(nbRequests)))
+        button.setText("Refreshed (%s)" % (str(len(self.state.endpointTableModel.endpoints))))
 
     def buildAddEditPrompt(self, typeValue=None, searchValue=None, replacementValue=None):
         """
@@ -650,8 +647,14 @@ class ToolboxCallbacks(NewThreadCaller):
         fuzzButton.setText("Fuzzing...")
 
         futures = []
+        endpointsNotReproducibleCount = 0
         for key in endpoints:
             endpoint = endpoints[key]
+
+            if endpointsNotReproducibleCount >= 10:
+                log("10 endpoints in a row not endpointsNotReproducibleCount")
+                sendMessageToSlack("10 endpoints in a row not reproducible, bailing from the current scan." % endpoint.url)
+                break
 
             if endpoint.fuzzed:
                 log("Did not fuzz '%s' because it was already fuzzed." % endpoint.url)
@@ -669,6 +672,7 @@ class ToolboxCallbacks(NewThreadCaller):
                     break
 
             if not fuzzed:
+                endpointsNotReproducibleCount += 1
                 log("Did not fuzz '%s' because no reproducible requests are possible with the current replacement rules" % endpoint.url)
 
             self.checkMaxConcurrentRequests(futures, self.maxConcurrentRequests)
@@ -707,7 +711,7 @@ class ToolboxCallbacks(NewThreadCaller):
                     else:
                         log("Fuzzing complete but did not mark as fuzzed becauase no longer reproducible at %s." % endpoint.url)
                         if not self.sentFailedMsgToSlack:
-                            sendMessageToSlack("A request was no longer reproducible after fuzzing. I think this means you need to fix my session plz.")
+                            sendMessageToSlack("A request was no longer reproducible after fuzzing.")
                             self.sentFailedMsgToSlack = True
 
     def fuzzRequestModel(self, request):
