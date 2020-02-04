@@ -1,9 +1,18 @@
-from burp import ITab
-from burp import IHttpListener
-from burp import IMessageEditorController
-from burp import IHttpService
 from burp import IExtensionStateListener
+from burp import IHttpListener
+from burp import IHttpService
+from burp import IMessageEditorController
+from burp import IScannerInsertionPoint
+from burp import ITab
+from java.io import ByteArrayOutputStream
+from java.lang import IllegalArgumentException, UnsupportedOperationException, String
 from utility import log
+import utility
+import json
+
+utility.importJavaDependency("lib/backslash-powered-scanner-fork.jar")
+
+from burp import Utilities
 
 class Tab(ITab):
     def __init__(self, splitpane):
@@ -125,4 +134,132 @@ class ExtensionStateListener(IExtensionStateListener):
         This function gets called when the extension is unloaded and is in charge of cleanup.
         """
         self.state.executorService.shutdown()
+        self.state.perRequestExecutorService.shutdown()
+        self.state.shutdown = True
+        Utilities.unloaded.set(True)
         log("Successfully shut down.")
+
+class ScannerInsertionPoint(IScannerInsertionPoint):
+    """
+    Custom implementation of ScannerInsertionPoint.
+
+    Allows us to specify the type of an attribute, unlike makeScannerInsertionPoint which forces the type to be "extension provided". Types are very important to ensure the proper encoding is put in place.
+    """
+    def __init__(self, callbacks, request, name, value, type, start, end):
+        """
+        Main constructor.
+
+        Args:
+            callbacks: the burp callbacks object.
+            request: the request that this ScannerInsertionPoint corresponds to as byte[].
+            name: the name of this parameter.
+            value: the base value of this parameter
+            type: the type of this IScannerInsertionPoint, see https://portswigger.net/burp/extender/api/burp/IScannerInsertionPoint.html
+            start: start offset of the value of this parameter.
+            end: the end offset of the value of this parameter.
+        """
+        self.callbacks = callbacks
+        self.request = request
+        self.name = name
+        self.value = value
+        self.type = type
+        self.start = start
+        self.end = end
+
+    def getInsertionPointName(self):
+        """
+        Getter for the insertion point name.
+        """
+        return self.name
+
+    def getBaseValue(self):
+        """
+        Getter for the base value.
+        """
+        return self.value
+
+    def buildRequest(self, payload):
+        """
+        This is the main method through which an extension interacts with a IScannerInsertionPoint instance. They provide the payload through the payload parameter and we replace it in our request.
+
+        If the parameter type is something that could be handled by Burp's helpers we update it in that way, otherwise we do it by modifying the byte arrays directly.
+
+        Args:
+            payload: the active scanner payload provided by the extension.
+        """
+
+        start = self.start
+        end = self.end
+
+        if self.type == IScannerInsertionPoint.INS_PARAM_JSON:
+            start, end, payload = self.encodeJson(start, end, payload)
+        elif self.type == IScannerInsertionPoint.INS_HEADER:
+            pass
+        else:
+            start, end, payload = self.encodeUrl(start, end, payload)
+
+        stream = ByteArrayOutputStream()
+        stream.write(self.request[0:start])
+        stream.write(payload)
+        stream.write(self.request[end:])
+
+        newRequestBytes = self.updateContentLength(stream.toByteArray())
+
+        return newRequestBytes
+
+    def updateContentLength(self, request):
+        """
+        Updates the request so that it has the correct content-length header for its body size.
+
+        Args:
+            request: the request bytes.
+
+        Return:
+            byte[]: the modified request
+        """
+        analyzedRequest = self.callbacks.helpers.analyzeRequest(request)
+        newRequest = self.callbacks.helpers.buildHttpMessage(analyzedRequest.headers, request[analyzedRequest.bodyOffset:])
+
+        return newRequest
+
+    def encodeJson(self, start, end, payload):
+        """
+        Encodes payload so that it will not break the JSON payload.
+
+        Args:
+            start: the start position of the value
+            end: the end position of the value
+            payload: the payload that the extension wishes to insert.
+
+        Returns:
+            tuple: (start, end, payload) after modifications have been made to account for the particularities of JSON encoding.
+        """
+        payloadString = str(String(payload))
+        payload = String(json.dumps(payloadString)).getBytes()
+
+        if chr(self.request[start-1]) == '"':
+            # accommodate for the quotes that dumps adds.
+            start -= 1
+            end += 1
+
+        return start, end, payload
+
+    def encodeUrl(self, start, end, payload):
+        """
+        Encodes payload so that it will not break the JSON payload.
+
+        Args:
+            start: the start position of the value
+            end: the end position of the value
+            payload: the payload that the extension wishes to insert.
+
+        Returns:
+            tuple: (start, end, payload) after modifications have been made to account for the particularities of URL encoding.
+        """
+        return start, end, self.callbacks.helpers.urlEncode(payload)
+
+    def getPayloadOffsets(self, payload):
+        return [self.start, self.start + len(payload)]
+
+    def getInsertionPointType(self):
+        return self.type

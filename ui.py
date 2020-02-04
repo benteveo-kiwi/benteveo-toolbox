@@ -1,4 +1,5 @@
-from implementations import MessageEditorController, HttpService
+from burp import IScannerInsertionPoint
+from implementations import MessageEditorController, HttpService, ScannerInsertionPoint
 from java.awt import BorderLayout
 from java.awt import Color
 from java.awt import Component
@@ -6,11 +7,11 @@ from java.awt import Dimension
 from java.awt import FlowLayout
 from java.awt import GridBagConstraints
 from java.awt import GridBagLayout
+from java.lang import Class
 from java.lang import Runnable
 from java.lang import String
-from java.lang import Class
 from java.lang import Thread
-from java.util.concurrent import Executors
+from java.util.concurrent import Executors, ExecutionException
 from javax.swing import BorderFactory
 from javax.swing import Box
 from javax.swing import BoxLayout
@@ -26,14 +27,23 @@ from javax.swing import JTable
 from javax.swing import JTextArea
 from javax.swing import JTextField
 from javax.swing import SwingUtilities
-from tables import Table, CellHighlighterRenderer
-from utility import apply_rules, get_header, log
+from tables import Table, CellHighlighterRenderer, TableMouseAdapter
+from threading import Lock
+from utility import apply_rules, get_header, log, sendMessageToSlack
 from utility import REPLACE_HEADER_NAME, NoSuchHeaderException
 import jarray
+import java.lang.Exception
+import logging
 import re
 import sys
+import time
 import traceback
 import utility
+
+# This is required because burp's scanning API does not support calling other extensions directly and active scan fails in strange ways. This is unsupported but may give us more flexibility. For more information see ToolboxCallbacks.fuzzRequestModel.
+utility.importJavaDependency("lib/backslash-powered-scanner-fork.jar")
+
+from burp import FastScan, Utilities
 
 STATUS_OK = 0
 STATUS_FAILED = 1
@@ -41,6 +51,12 @@ STATUS_FAILED = 1
 class InvalidInputException(Exception):
     """
     Raised when a user inputs something invalid into a form.
+    """
+    pass
+
+class ShutdownException(Exception):
+    """
+    Raised on threads to cause a failure that will trigger the thread to naturally die.
     """
     pass
 
@@ -168,10 +184,12 @@ class ToolboxUI():
 
         check = self.getButton("Check", 20, 50)
         check.addActionListener(self.callbacks.checkButtonClicked)
-        state.checkButton = check
 
-        runAll = self.getButton("Run ALL", 20, 90)
-        runAll.addActionListener(self.callbacks.runAllButtonClicked)
+        resendAll = self.getButton("Resend ALL", 20, 90)
+        resendAll.addActionListener(self.callbacks.resendAllButtonClicked)
+
+        fuzz = self.getButton("FUZZ", 20, 130)
+        fuzz.addActionListener(self.callbacks.fuzzButtonClicked)
 
         textarea = self.getTextArea()
         state.sessionCheckTextarea = textarea.viewport.view
@@ -179,7 +197,8 @@ class ToolboxUI():
 
         rules.add(title)
         rules.add(check)
-        rules.add(runAll)
+        rules.add(resendAll)
+        rules.add(fuzz)
         rules.add(textarea)
 
         return rules
@@ -221,11 +240,12 @@ class ToolboxUI():
         splitpane.setDividerLocation(1000)
 
         endpointTable = Table(state.endpointTableModel)
-        endpointTable.setDefaultRenderer(Class.forName('java.lang.Object'), CellHighlighterRenderer())
+        endpointTable.setDefaultRenderer(Class.forName('java.lang.Object'), CellHighlighterRenderer(state))
 
         endpointTable.getColumnModel().getColumn(0).setPreferredWidth(15)
         endpointTable.getColumnModel().getColumn(1).setPreferredWidth(500)
         endpointTable.setAutoCreateRowSorter(True)
+        endpointTable.addMouseListener(TableMouseAdapter())
 
         endpointView = JScrollPane(endpointTable)
         callbacks.customizeUiComponent(endpointTable)
@@ -303,10 +323,11 @@ class PythonFunctionRunnable(Runnable):
         """
         try:
             self.method(*self.args, **self.kwargs)
-        except:
-            print "Exception in thread:"
-            print sys.exc_info()
+        except ShutdownException:
+            log("Thread shutting down")
             raise
+        except:
+            logging.exception("Exception in thread")
 
 class NewThreadCaller(object):
     """
@@ -353,14 +374,24 @@ class ToolboxCallbacks(NewThreadCaller):
         """
         self.state = state
         self.burpCallbacks = burpCallbacks
+        self.lock = Lock()
+
+        self.maxConcurrentRequests = 8
 
         # Avoid instantiating during unit test as it is not needed.
         if not utility.INSIDE_UNIT_TEST:
-            self.state.executorService = Executors.newFixedThreadPool(20)
+            self.state.executorService = Executors.newFixedThreadPool(16)
+            self.state.perRequestExecutorService = Executors.newFixedThreadPool(self.maxConcurrentRequests)
+
+            log("Backslash Powered Scanner preferences:")
+            Utilities(self.burpCallbacks) # backslash powered scanner global state
 
     def refreshButtonClicked(self, event):
         """
         Handles click of refresh button. This reloads the results page with the new scope.
+
+        Args:
+            event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
         """
         self.state.endpointTableModel.clear()
 
@@ -376,6 +407,9 @@ class ToolboxCallbacks(NewThreadCaller):
             requests = self.burpCallbacks.getSiteMap(url)
             for request in requests:
                 self.state.endpointTableModel.add(request)
+
+        button = event.source
+        button.setText("Refreshed (%s)" % (str(len(self.state.endpointTableModel.endpoints))))
 
     def buildAddEditPrompt(self, typeValue=None, searchValue=None, replacementValue=None):
         """
@@ -439,6 +473,9 @@ class ToolboxCallbacks(NewThreadCaller):
     def addButtonClicked(self, event):
         """
         Handles click of the replacement rule add button.
+
+        Args:
+            event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
         """
         try:
             type, search, replacement = self.buildAddEditPrompt()
@@ -451,6 +488,9 @@ class ToolboxCallbacks(NewThreadCaller):
     def editButtonClicked(self, event):
         """
         Handles click of the edit button.
+
+        Args:
+            event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
         """
         rule = self.state.replacementRuleTableModel.selected
 
@@ -465,6 +505,9 @@ class ToolboxCallbacks(NewThreadCaller):
     def deleteButtonClicked(self, event):
         """
         Handles click of the delete button.
+
+        Args:
+            event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
         """
         rule = self.state.replacementRuleTableModel.selected
         self.state.replacementRuleTableModel.delete(rule.id)
@@ -476,9 +519,15 @@ class ToolboxCallbacks(NewThreadCaller):
         Gets called when a user clicks the check button. Repeats the request with the modifications made and assesses whether the result is positive or negative.
 
         Normalizes the newlines in the textarea to make them compatible with burp APIs and then converts them into a binary string.
+
+        Args:
+            event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
         """
 
         textAreaText = self.state.sessionCheckTextarea.text
+
+        checkButton = event.source
+        checkButton.setText("Checking...")
 
         self.burpCallbacks.saveExtensionSetting("scopeCheckRequest", textAreaText)
 
@@ -489,51 +538,67 @@ class ToolboxCallbacks(NewThreadCaller):
             hostHeader = get_header(self.burpCallbacks, baseRequest, "host")
         except NoSuchHeaderException:
             self.messageDialog("Check request failed: no Host header present in session check request.")
-            self.checkButtonSetFail()
+            self.checkButtonSetFail(checkButton)
             return
 
         target = self.burpCallbacks.helpers.buildHttpService(hostHeader, 443, "https")
 
         nbModified, modifiedRequest = apply_rules(self.burpCallbacks, self.state.replacementRuleTableModel.rules, baseRequest)
-        if nbModified > 0:
-            response = self.burpCallbacks.makeHttpRequest(target, modifiedRequest)
-            analyzedResponse = self.burpCallbacks.helpers.analyzeResponse(response.response)
+        if nbModified == 0:
+            log("Warning: No modifications made to check request.")
 
-            if analyzedResponse.statusCode == 200:
-                self.state.checkButton.setText("Check: OK")
-                self.state.status = STATUS_OK
-            else:
-                self.messageDialog("Check request failed: response was not 200 OK, was '%s'." % str(analyzedResponse.statusCode))
-                self.checkButtonSetFail()
+        response = self.burpCallbacks.makeHttpRequest(target, modifiedRequest)
+        analyzedResponse = self.burpCallbacks.helpers.analyzeResponse(response.response)
+
+        if analyzedResponse.statusCode == 200:
+            checkButton.setText("Check: OK")
+            self.state.status = STATUS_OK
         else:
-            self.messageDialog("Check request not issued because no modifications to it were made based on the rules provided by user.")
-            self.checkButtonSetFail()
+            self.messageDialog("Check request failed: response was not 200 OK, was '%s'." % str(analyzedResponse.statusCode))
+            self.checkButtonSetFail(checkButton)
 
-    def checkButtonSetFail(self):
+    def checkButtonSetFail(self, checkButton):
         """
         Convenience function to make the check button failed.
-        """
-        self.state.checkButton.setText("Check: FAILED")
-        self.state.status = STATUS_FAILED
-
-    def runAllButtonClicked(self, event):
-        """
-        Gets called when the user calls runAll. This initiates the main IDOR checking.
 
         Args:
-            event: the event as passed by Swing.
+            checkButton: the JButton instance corresponding to the check button.
+        """
+        checkButton.setText("Check: FAILED")
+        self.state.status = STATUS_FAILED
+
+    def resendAllButtonClicked(self, event):
+        """
+        Gets called when the user clicks the `Resend ALL` button. This initiates the main IDOR checking.
+
+        Args:
+            event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
         """
         if self.state.status == STATUS_FAILED:
             self.messageDialog("Confirm status check button says OK.")
             return
 
         endpoints = self.state.endpointTableModel.endpoints
+        resendAllButton = event.source
 
+        futures = []
+        nb = 0
         for key in endpoints:
             endpoint = endpoints[key]
             for request in endpoint.requests:
                 runnable = PythonFunctionRunnable(self.resendRequestModel, args=[request])
-                self.state.executorService.submit(runnable)
+                futures.append(self.state.executorService.submit(runnable))
+                nb += 1
+
+        while len(futures) > 0:
+            self.sleep(1)
+            resendAllButton.setText("%s remaining" % (len(futures)))
+
+            for future in futures:
+                if future.isDone():
+                    futures.remove(future)
+
+        resendAllButton.setText("Resent")
 
     def resendRequestModel(self, request):
         """
@@ -554,9 +619,273 @@ class ToolboxCallbacks(NewThreadCaller):
         nbModified, modifiedRequest = apply_rules(self.burpCallbacks,
                                                 self.state.replacementRuleTableModel.rules,
                                                 request.httpRequestResponse.request)
+        if nbModified == 0:
+            log("Warning: Request for '%s' endpoint was not modified." % path)
 
-        if nbModified > 0:
-            newResponse = self.burpCallbacks.makeHttpRequest(target, modifiedRequest)
-            self.state.endpointTableModel.update(request, newResponse)
-        else:
-            log("Request was not modified so was not resent.")
+        newResponse = self.burpCallbacks.makeHttpRequest(target, modifiedRequest)
+        self.state.endpointTableModel.update(request, newResponse)
+
+
+    def fuzzButtonClicked(self, event):
+        """
+        Handles clicks to the FUZZ button.
+
+        We attempt to fuzz only one request per endpoint, using our own criteria to differentiate between endpoints as defined in `EndpontTableModel.generateEndpointHash`. For each endpoint, we iterate through requests until we can find a single request whose status code is the same between both the original and the repeated request, we only fuzz once. Note this tool will only succeed if the user has clicked the check button.
+
+        Args:
+            event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
+        """
+        if self.state.status == STATUS_FAILED:
+            self.messageDialog("Confirm status check button says OK.")
+            return
+
+        endpoints = self.state.endpointTableModel.endpoints
+
+        fuzzButton = event.source
+        fuzzButton.setText("Fuzzing...")
+
+        futures = []
+        endpointsNotReproducibleCount = 0
+        for key in endpoints:
+            endpoint = endpoints[key]
+
+            if endpointsNotReproducibleCount >= 10:
+                log("10 endpoints in a row not endpointsNotReproducibleCount")
+                sendMessageToSlack("10 endpoints in a row not reproducible, bailing from the current scan.")
+                break
+
+            if endpoint.fuzzed:
+                continue
+
+            fuzzed = False
+            for request in endpoint.requests:
+                self.sleep(0.2)
+                self.resendRequestModel(request)
+                if request.wasReproducible():
+                    endpointsNotReproducibleCount = 0
+
+                    runnable = PythonFunctionRunnable(self.fuzzRequestModel, args=[request])
+                    futures.append((endpoint, request, self.state.perRequestExecutorService.submit(runnable)))
+
+                    fuzzed = True
+                    break
+
+            if not fuzzed:
+                endpointsNotReproducibleCount += 1
+                log("Did not fuzz '%s' because no reproducible requests are possible with the current replacement rules" % endpoint.url)
+
+            self.checkMaxConcurrentRequests(futures, self.maxConcurrentRequests)
+
+        self.checkMaxConcurrentRequests(futures, 1) # ensure all requests are `isDone()`
+        fuzzButton.setText("FUZZ")
+        sendMessageToSlack("Scan finished normally.")
+
+
+    def checkMaxConcurrentRequests(self, futures, maxRequests):
+        """
+        Blocking function that waits until we can make more requests.
+
+        It is in charge of marking requests as fuzzed once completed.
+
+        Args:
+            futures: futures as defined in `fuzzButtonClicked`
+            maxRequests: maximum requests that should be pending at this time.
+        """
+        while len(futures) >= maxRequests:
+            self.sleep(1)
+            for tuple in futures:
+                endpoint, request, future = tuple
+                if future.isDone():
+                    futures.remove(tuple)
+
+                    try:
+                        future.get()
+                    except ExecutionException:
+                        log("Failed to fuzz %s" % endpoint.url)
+                        logging.error("Failure fuzzing %s" % endpoint.url, exc_info=True)
+                        continue
+
+                    self.resendRequestModel(request)
+                    if request.wasReproducible():
+                        self.state.endpointTableModel.setFuzzed(endpoint, True)
+                        log("Finished fuzzing %s" % endpoint.url)
+                    else:
+                        log("Fuzzing complete but did not mark as fuzzed becauase no longer reproducible at %s." % endpoint.url)
+
+                    break
+
+    def fuzzRequestModel(self, request):
+        """
+        Sends a RequestModel to be fuzzed by burp.
+
+        Burp has a helper function for running active scans, however I am not using it for two reasons. Firstly, as of 2.x the mechanism for configuring scans got broken in a re-shuffle of burp code. Secondly, burp's session handling for large scans is not perfect, once the session expires the scan continues to fuzz requests with an expired session, and implementing my own session handling on top of IScannerCheck objects is not possible due to a bug in getStatus() where requests that have errored out still have a "scanning" status. If these issues are resolved we can get rid of this workaround.
+
+        We work around this by importing Backslash powered scanner's FastScan and calling it directly https://github.com/PortSwigger/backslash-powered-scanner/blob/c861d56a3b84e4720bb0c352a22999012a7b2bc3/src/burp/BurpExtender.java#L55. We maintain a fork of BPS benteveo-kiwi for making private classes public.
+
+        Args:
+            request: an instance of RequestModel.
+        """
+        self.sleep(0.2)
+
+        fastScan = FastScan(self.burpCallbacks)
+
+        insertionPoints = self.getInsertionPoints(request)
+
+        futures = []
+        for insertionPoint in insertionPoints:
+            runnable = PythonFunctionRunnable(self.doActiveScan, args=[fastScan, request.httpRequestResponse, insertionPoint])
+            futures.append(self.state.executorService.submit(runnable))
+
+        while len(futures) > 0:
+            self.sleep(1)
+
+            for future in futures:
+                if future.isDone():
+                    future.get()
+                    futures.remove(future)
+
+    def getInsertionPoints(self, request):
+        """
+        Gets IScannerInsertionPoint for indicating active scan parameters. See https://portswigger.net/burp/extender/api/burp/IScannerInsertionPoint.html
+
+        Uses a custom implementation of the IScannerInsertionPoint because the default helper function at `makeScannerInsertionPoint` doesn't let you specify the parameter type. The parameter type is necessary to perform modifications to the payload in order to perform proper injection, such as not using unescaped quotes when inserting into a JSON object as this will result in a syntax error.
+
+        Args:
+            request: the request to generate insertion points for.
+        """
+        parameters = request.repeatedAnalyzedRequest.parameters
+
+        insertionPoints = []
+        for parameter in parameters:
+            insertionPoint = ScannerInsertionPoint(self.burpCallbacks, request.repeatedHttpRequestResponse.request, parameter.name, parameter.value, parameter.type, parameter.valueStart, parameter.valueEnd)
+            insertionPoints.append(insertionPoint)
+
+        for pathInsertionPoint in self.getPathInsertionPoints(request):
+            insertionPoints.append(pathInsertionPoint)
+
+        for headerInsertionPoint in self.getHeaderInsertionPoints(request):
+            insertionPoints.append(headerInsertionPoint)
+
+        return insertionPoints
+
+    def getHeaderInsertionPoints(self, request):
+        """
+        Gets header insertion points.
+
+        This means that for a header like:
+
+        ```
+        GET / HTTP/1.1
+        Host: header.com
+        Random-header: lel-value
+
+        ```
+
+        It would generate two insertion points corresponding to the headers.
+
+        Args:
+            request: the request to analyze.
+        """
+        headers = request.repeatedAnalyzedRequest.headers
+
+        lineStartOffset = 0
+        insertionPoints = []
+        for nb, header in enumerate(headers):
+
+            if nb > 0:
+                splat = header.split(":")
+                headerName = splat[0]
+                headerValue = splat[1].lstrip()
+
+                startOffset = lineStartOffset + len(headerName) + 1 # for ":"
+                if headerValue.startswith(" "):
+                    startOffset += 1
+
+                endOffset = startOffset + len(headerValue)
+
+                insertionPoint = ScannerInsertionPoint(self.burpCallbacks, request.repeatedHttpRequestResponse.request, headerName, headerValue, IScannerInsertionPoint.INS_HEADER, startOffset, endOffset)
+                insertionPoints.append(insertionPoint)
+
+            lineStartOffset += len(header) + 1 # for newline
+
+        return insertionPoints
+
+    def getPathInsertionPoints(self, request):
+        """
+        Gets folder insertion points.
+
+        This means that for a URL such as /folder/folder/file.php it would generate three insertion points: one for each folder and one for the filename.
+
+        Args:
+            request: the request to generate the insertion points for.
+
+        Return:
+            list: the IScannerInsertionPoint objects.
+        """
+        firstLine = request.repeatedAnalyzedRequest.headers[0]
+        startOffset = None
+        endOffset = None
+        insertionPoints = []
+
+        if " / " in firstLine:
+            return []
+
+        for offset, char in enumerate(firstLine):
+            if char in ["/", " ", "?"]:
+                if not startOffset:
+                    if char == "/":
+                        startOffset = offset + 1
+                else:
+                    endOffset = offset
+                    value = firstLine[startOffset:endOffset]
+                    type = IScannerInsertionPoint.INS_URL_PATH_FOLDER if char == "/" else IScannerInsertionPoint.INS_URL_PATH_FILENAME
+
+                    insertionPoint = ScannerInsertionPoint(self.burpCallbacks, request.repeatedHttpRequestResponse.request, "pathParam", value, type, startOffset, endOffset)
+
+                    insertionPoints.append(insertionPoint)
+                    startOffset = offset + 1
+
+                    if char in [" ", "?"]:
+                        break
+
+        return insertionPoints
+
+
+    def doActiveScan(self, fastScan, httpRequestResponse, insertionPoint):
+        """
+        Performs an active scan and stores issues found.
+
+        Because the scanner fails sometimes with random errors when HTTP requests timeout and etcetera, we retry a couple of times. This allows us to scan faster because we can be more resilient to errors.
+
+        Args:
+            fastScan: the BPS fastscan object.
+            httpRequestResponse: the value to pass to doActiveScan
+            insertionPoint: the insertionPoint to scan.
+        """
+        retries = 5
+        while retries > 0:
+            self.sleep(1)
+            try:
+                issues = fastScan.doActiveScan(httpRequestResponse, insertionPoint)
+                break
+            except java.lang.Exception:
+                retries -= 1
+                logging.error("Java exception while fuzzing individual param, retrying it. %d retries left." % retries, exc_info=True)
+
+        with self.lock:
+            for issue in issues:
+                sendMessageToSlack("Found something interesting! apparently '%s'. Do you want to check it out?" % (issue.issueName))
+                self.burpCallbacks.addScanIssue(issue)
+
+    def sleep(self, sleepTime):
+        """
+        Sleeps for a certain time. Checks for state.shutdown and if it is true raises an unhandled exception that crashes the thread.
+
+        Args:
+            sleepTime: the time in seconds.
+        """
+        if self.state.shutdown:
+            log("Thread shutting down.")
+            raise ShutdownException()
+
+        time.sleep(sleepTime)

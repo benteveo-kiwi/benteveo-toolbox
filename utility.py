@@ -1,6 +1,9 @@
 from java.util import ArrayList
 from java.util import Arrays
+import json
 import re
+import sys
+import urllib2
 
 # Constants for the add replacement form.
 REPLACE_HEADER_NAME = "Replace by header name"
@@ -10,6 +13,8 @@ regex = [
     re.compile("[a-f0-9]{64}"), # 748bbea58bb5db34e95d02edb2935c0f25cb1593e5ab837767e260a349c02ca7
     re.compile("[0-9]{13}-[a-f0-9]{64}"), # 1579636429347-c568eba49ad17ef37b9db4ea42466b71e065481ddbc2f5a63503719c44dfb6ee
     re.compile("S-1.*"), # S-1-5-21-2931253742-2981233768-3707659581-1108%26d-90670d8a68
+    re.compile("^[0-9]+$"), # 121251251
+    re.compile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"), # 1da4b1de-c0af-4e11-8d44-97de90728db3
 ]
 
 class NoSuchHeaderException(Exception):
@@ -58,11 +63,12 @@ def replace_header_name(callbacks, rule, request):
     modified = False
     newHeaders = ArrayList()
     for header in headers:
-        try:
-            name, value = header.split(":")
-        except ValueError:
+        splat = header.split(":")
+        if len(splat) >= 2:
+            name, value = splat[0], splat[1]
+        else:
             newHeaders.add(header)
-            continue # Always happens on the first line of the request.
+            continue # First line of header doesn't have ":"
 
         if name.lower().strip() == rule.search.lower().strip():
             newHeaders.add("%s: %s" % (name, rule.replacement))
@@ -121,3 +127,21 @@ def log(message):
         Message to print.
     """
     print message +"\n",
+
+def importJavaDependency(source):
+    if source not in sys.path:
+        sys.path.append(source)
+
+def sendMessageToSlack(message):
+    """
+    Sends a message to the Benteveo Kiwi slack channel.
+
+    Doesn't use burps APIs so the request is not registered by burp.
+
+    Args:
+        message: the message to send.
+    """
+    url = 'https://hooks.slack.com/services/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'
+    params = {'text': message}
+    req = urllib2.Request(url, headers = {"Content-Type": "application/json"}, data = json.dumps(params))
+    urllib2.urlopen(req)

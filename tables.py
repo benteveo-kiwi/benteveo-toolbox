@@ -10,7 +10,9 @@ from javax.swing.table import AbstractTableModel
 from javax.swing.table import DefaultTableCellRenderer
 from models import EndpointModel, RequestModel, ReplacementRuleModel
 from threading import Lock
+from java.awt.event import MouseAdapter
 import json
+import logging
 import sys
 import utility
 
@@ -42,12 +44,27 @@ class Table(JTable):
         try:
             self.model.selectRow(self.convertRowIndexToModel(row))
         except:
-            print "Exception in selectRow:"
-            print sys.exc_info()
-            raise
+            logging.exception("Exception in selectRow")
 
+
+class TableMouseAdapter(MouseAdapter):
+
+    def mouseClicked(self, event):
+        table = event.getSource()
+        endpointTableModel = table.getModel()
+
+        rowIndex = table.rowAtPoint(event.point)
+        columnIndex = table.columnAtPoint(event.point)
+
+        if columnIndex == 6:
+            endpoint = endpointTableModel.getEndpoint(table.convertRowIndexToModel(rowIndex))
+            newValue = False if endpoint.fuzzed else True
+            endpointTableModel.setFuzzed(endpoint, newValue)
 
 class CellHighlighterRenderer(DefaultTableCellRenderer):
+
+    def __init__(self, state):
+        self.state = state
 
     def getTableCellRendererComponent(self, table, value, isSelected, hasFocus, rowIndex, columnIndex):
         comp = DefaultTableCellRenderer.getTableCellRendererComponent(self, table, value, isSelected, hasFocus, rowIndex, columnIndex)
@@ -58,11 +75,14 @@ class CellHighlighterRenderer(DefaultTableCellRenderer):
         percentSameLength = table.model.getValueAt(modelRow, 4)
         hasId = table.model.getValueAt(modelRow, 5)
 
-        if percentSameStatus == 100.0 and percentSameLength == 100.0 and hasId:
-            print(percentSameStatus, percentSameLength, hasId, table.model)
-            comp.setBackground(Color.GREEN)
+        idorModeActive = len(self.state.replacementRuleTableModel.rules) > 0
+
+        if (percentSameStatus == 100.0 and percentSameLength == 100.0 and hasId) and idorModeActive:
+            if not isSelected:
+                comp.setBackground(Color.GREEN)
         else:
-            comp.setBackground(Color.WHITE)
+            if not isSelected:
+                comp.setBackground(Color.WHITE)
 
         return comp
 
@@ -73,7 +93,7 @@ class EndpointTableModel(AbstractTableModel):
     Also keeps in the endpoints attribute a list of all known endpoints.
     """
 
-    cols = ["Method", "URL", "#", "% Same Status", "% Same Len", "Has ID"]
+    cols = ["Method", "URL", "#", "% Same Status", "% Same Len", "Has ID", "Fuzzed"]
 
     def __init__(self, state, callbacks):
         """
@@ -87,6 +107,7 @@ class EndpointTableModel(AbstractTableModel):
         self.state = state
         self.callbacks = callbacks
         self.endpoints = OrderedDict()
+        self.maxRequests = 100
 
     def generateEndpointHash(self, analyzedRequest):
         """
@@ -169,6 +190,9 @@ class EndpointTableModel(AbstractTableModel):
 
         Args:
             httpRequestResponse: an HttpRequestResponse java object as returned by burp.
+
+        Return:
+            boolean: whether the request was added or not. It is not added if method is OPTIONS, if there is no response stored for the original request, or if there are too many requests for this endpoint already.
         """
 
         with self.lock:
@@ -178,18 +202,25 @@ class EndpointTableModel(AbstractTableModel):
             hash, url, method = self.generateEndpointHash(analyzedRequest)
 
             if not httpRequestResponse.response:
-                return
+                return False
 
             if method == "OPTIONS":
-                return
+                return False
+
+            fuzzed = True if self.callbacks.loadExtensionSetting("fuzzed-" + hash) == "true" else False
 
             if hash not in self.endpoints:
-                self.endpoints[hash] = EndpointModel(method, url)
+                self.endpoints[hash] = EndpointModel(method, url, fuzzed)
 
-            self.endpoints[hash].add(RequestModel(httpRequestResponse, self.callbacks))
+            if self.endpoints[hash].nb < self.maxRequests:
+                self.endpoints[hash].add(RequestModel(httpRequestResponse, self.callbacks))
 
-            added_at_index = len(self.endpoints)
-            self.fireTableRowsInserted(added_at_index - 1, added_at_index - 1)
+                added_at_index = len(self.endpoints)
+                self.fireTableRowsInserted(added_at_index - 1, added_at_index - 1)
+
+                return True
+            else:
+                return False
 
     def clear(self):
         """
@@ -240,6 +271,8 @@ class EndpointTableModel(AbstractTableModel):
             return endpointModel.percentSameLength
         elif columnIndex == 5:
             return endpointModel.containsId
+        elif columnIndex == 6:
+            return endpointModel.fuzzed
 
     def update(self, requestModel, httpRequestResponse):
         """
@@ -254,8 +287,14 @@ class EndpointTableModel(AbstractTableModel):
             httpRequestResponse: the HttpRequestResponse object returned by performing the new request.
         """
         with self.lock:
+
+            if not httpRequestResponse.response:
+                log("No response received on update call()")
+                return
+
             requestModel.repeatedHttpRequestResponse = httpRequestResponse
             requestModel.repeatedAnalyzedResponse = self.callbacks.helpers.analyzeResponse(httpRequestResponse.response)
+            requestModel.repeatedAnalyzedRequest = self.callbacks.helpers.analyzeRequest(httpRequestResponse.request)
             requestModel.repeated = True
 
             self.fireTableDataChanged()
@@ -266,10 +305,24 @@ class EndpointTableModel(AbstractTableModel):
         """
         if columnIndex in [2, 3, 4]:
             return Integer(0).class
-        if columnIndex in [5]:
+        if columnIndex in [5, 6]:
             return Boolean(True).class
         else:
             return String("").class
+
+    def setFuzzed(self, endpointModel, fuzzed):
+        """
+        Thread safe way to mark EndpointModel as fuzzed.
+
+        Args:
+            endpointModel: the EndpointModel object,
+            fuzzed: new fuzzed value.
+        """
+        with self.lock:
+            endpointModel.fuzzed = fuzzed
+            store = "true" if fuzzed else "false"
+            self.callbacks.saveExtensionSetting("fuzzed-"+self.generateEndpointHash(endpointModel.requests[0].analyzedRequest)[0], store)
+            self.fireTableDataChanged()
 
 class RequestTableModel(AbstractTableModel):
     """
@@ -388,7 +441,7 @@ class RequestTableModel(AbstractTableModel):
         if request.repeatedHttpRequestResponse:
             self.state.repeatedRequestViewer.setMessage(request.repeatedHttpRequestResponse.request, False)
             self.state.repeatedResponseViewer.setMessage(request.repeatedHttpRequestResponse.response, False)
-            self.state.repeatedHttpRequestResponse = request.httpRequestResponse
+            self.state.repeatedHttpRequestResponse = request.repeatedHttpRequestResponse
         else:
             self.state.repeatedRequestViewer.setMessage(String("").getBytes(), False)
             self.state.repeatedResponseViewer.setMessage(String("").getBytes(), False)

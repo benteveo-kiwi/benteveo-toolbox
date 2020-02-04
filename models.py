@@ -6,19 +6,21 @@ class EndpointModel(object):
     This endpoint represents a group of requests that are all sent to the same URL, or roughly the same URL. The idea is to aggregate all endpoints that refer on the backend to the same code path.
     """
 
-    def __init__(self, method, url):
+    def __init__(self, method, url, fuzzed=False):
         """
         Main constructor method.
 
         Args:
             method: the HTTP method for this endpoint.
             url: the normalized url for this endpoint. See `EndpointTableModel.generateEndpointHash()`
+            fuzzed: whether this endpoint has been fuzzed already
         """
 
         self.method = method
         self.url = url
         self.nb = 0
         self.requests = []
+        self.fuzzed = fuzzed
 
     def add(self, requestModel):
         """
@@ -86,8 +88,8 @@ class RequestModel(object):
         See https://portswigger.net/burp/extender/api/burp/IExtensionHelpers.html#analyzeRequest(burp.IHttpRequestResponse) for more info. Analysis of the response is performed as-needed because it is very slow and hangs burp.
 
         Args:
-        httpRequestResponse: a httpRequestResponse as returned by burp apis.
-        callbacks: burp callbacks object.
+            httpRequestResponse: a httpRequestResponse as returned by burp apis.
+            callbacks: burp callbacks object.
         """
         self.callbacks = callbacks
 
@@ -97,6 +99,7 @@ class RequestModel(object):
 
         self.repeatedHttpRequestResponse = None
         self.repeatedAnalyzedResponse = None
+        self.repeatedAnalyzedRequest = None
 
         self.repeated = False
 
@@ -124,6 +127,17 @@ class RequestModel(object):
                 return self._analyzedResponse
             else:
                 return None
+
+    def wasReproducible(self):
+        """
+        Returns whether this requests could be reproduced last time it was resent.
+
+        Reproducible in this context means that the request reached the endpoint and was successfully authenticated by the target server. We use this criteria to determine whether it is worth it to fuzz the endpoint or we are just going to be fuzzing the 401 page.
+
+        Returns:
+            boolean: true if the request is reproducible.
+        """
+        return self.analyzedResponse.statusCode == self.repeatedAnalyzedResponse.statusCode
 
 class ReplacementRuleModel():
     def __init__(self, id, type, search, replacement):
