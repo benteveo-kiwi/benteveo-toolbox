@@ -662,6 +662,8 @@ class ToolboxCallbacks(NewThreadCaller):
                 self.sleep(0.2)
                 self.resendRequestModel(request)
                 if request.wasReproducible():
+                    endpointsNotReproducibleCount = 0
+
                     runnable = PythonFunctionRunnable(self.fuzzRequestModel, args=[request])
                     futures.append((endpoint, request, self.state.perRequestExecutorService.submit(runnable)))
 
@@ -711,7 +713,7 @@ class ToolboxCallbacks(NewThreadCaller):
                         log("Fuzzing complete but did not mark as fuzzed becauase no longer reproducible at %s." % endpoint.url)
 
                     break
-                    
+
     def fuzzRequestModel(self, request):
         """
         Sends a RequestModel to be fuzzed by burp.
@@ -761,6 +763,51 @@ class ToolboxCallbacks(NewThreadCaller):
         for pathInsertionPoint in self.getPathInsertionPoints(request):
             insertionPoints.append(pathInsertionPoint)
 
+        for headerInsertionPoint in self.getHeaderInsertionPoints(request):
+            insertionPoints.append(headerInsertionPoint)
+
+        return insertionPoints
+
+    def getHeaderInsertionPoints(self, request):
+        """
+        Gets header insertion points.
+
+        This means that for a header like:
+
+        ```
+        GET / HTTP/1.1
+        Host: header.com
+        Random-header: lel-value
+
+        ```
+
+        It would generate two insertion points corresponding to the headers.
+
+        Args:
+            request: the request to analyze.
+        """
+        headers = request.repeatedAnalyzedRequest.headers
+
+        lineStartOffset = 0
+        insertionPoints = []
+        for nb, header in enumerate(headers):
+
+            if nb > 0:
+                splat = header.split(":")
+                headerName = splat[0]
+                headerValue = splat[1].lstrip()
+
+                startOffset = lineStartOffset + len(headerName) + 1 # for ":"
+                if headerValue.startswith(" "):
+                    startOffset += 1
+
+                endOffset = startOffset + len(headerValue)
+
+                insertionPoint = ScannerInsertionPoint(self.burpCallbacks, request.repeatedHttpRequestResponse.request, headerName, headerValue, IScannerInsertionPoint.INS_HEADER, startOffset, endOffset)
+                insertionPoints.append(insertionPoint)
+
+            lineStartOffset += len(header) + 1 # for newline
+
         return insertionPoints
 
     def getPathInsertionPoints(self, request):
@@ -779,6 +826,10 @@ class ToolboxCallbacks(NewThreadCaller):
         startOffset = None
         endOffset = None
         insertionPoints = []
+
+        if " / " in firstLine:
+            return []
+
         for offset, char in enumerate(firstLine):
             if char in ["/", " ", "?"]:
                 if not startOffset:

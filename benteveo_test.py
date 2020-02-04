@@ -801,7 +801,7 @@ class TestToolbox(unittest.TestCase):
         cb.fuzzRequestModel(GenericMock())
 
         self.assertEquals(ui.FastScan.call_count, 1)
-        self.assertEquals(state.executorService.submit.call_count, 3)
+        self.assertEquals(state.executorService.submit.call_count, 5)
 
         state.executorService.submit.return_value.isDone = raise_exception
 
@@ -914,9 +914,10 @@ class TestToolbox(unittest.TestCase):
         parameter.value = "lol"
         parameter.type = 1
         request.repeatedAnalyzedRequest.parameters = [parameter, parameter, parameter]
+        request.repeatedAnalyzedRequest.headers = [parameter, parameter, parameter] # gonna skip the first line in the header
 
         insertionPoints = cb.getInsertionPoints(request)
-        self.assertEquals(len(insertionPoints), 3)
+        self.assertEquals(len(insertionPoints), 5)
 
     def testGetInsertionPointsPath(self):
         cb, state, burpCallbacks = self._ctc()
@@ -929,7 +930,7 @@ class TestToolbox(unittest.TestCase):
         request.repeatedAnalyzedRequest.parameters = []
         request.repeatedAnalyzedRequest.headers = headers
 
-        insertionPoints = cb.getInsertionPoints(request)
+        insertionPoints = cb.getPathInsertionPoints(request)
         self.assertEquals(len(insertionPoints), 3)
         self.assertEquals(insertionPoints[0].type, IScannerInsertionPoint.INS_URL_PATH_FOLDER)
         self.assertEquals(insertionPoints[1].type, IScannerInsertionPoint.INS_URL_PATH_FOLDER)
@@ -946,7 +947,7 @@ class TestToolbox(unittest.TestCase):
         request.repeatedAnalyzedRequest.parameters = []
         request.repeatedAnalyzedRequest.headers = headers
 
-        insertionPoints = cb.getInsertionPoints(request)
+        insertionPoints = cb.getPathInsertionPoints(request)
         self.assertEquals(len(insertionPoints), 3)
         self.assertEquals(insertionPoints[2].type, IScannerInsertionPoint.INS_URL_PATH_FILENAME)
         self.assertEquals(insertionPoints[2].value, "file.php")
@@ -1029,6 +1030,51 @@ class TestToolbox(unittest.TestCase):
         ret = sip.buildRequest(String("lol").getBytes())
 
         self.assertEquals(sip.updateContentLength.call_count, 1)
+
+    def testGetInsertionPointsPathRoot(self):
+        cb, state, burpCallbacks = self._ctc()
+
+        headers = ArrayList()
+        headers.add("GET / HTTP/1.1")
+        headers.add("Host: example.org")
+        headers.add("Custom-header: example.org")
+
+        request = GenericMock()
+        request.repeatedAnalyzedRequest.parameters = []
+        request.repeatedAnalyzedRequest.headers = headers
+
+        insertionPoints = cb.getPathInsertionPoints(request)
+        self.assertEquals(len(insertionPoints), 0)
+
+    def testGetInsertionPointsHeaders(self):
+        cb, state, burpCallbacks = self._ctc()
+
+        headers = ArrayList()
+        headers.add("GET / HTTP/1.1")
+        headers.add("Host: example.org")
+        headers.add("Custom-header: LOL")
+
+        request = GenericMock()
+        request.repeatedAnalyzedRequest.parameters = []
+        request.repeatedAnalyzedRequest.headers = headers
+
+        insertionPoints = cb.getInsertionPoints(request)
+        self.assertEquals(len(insertionPoints), 2)
+        self.assertEquals(insertionPoints[0].type, IScannerInsertionPoint.INS_HEADER)
+        self.assertEquals(insertionPoints[0].baseValue, "example.org")
+        self.assertEquals(insertionPoints[1].type, IScannerInsertionPoint.INS_HEADER)
+        self.assertEquals(insertionPoints[1].baseValue, "LOL")
+
+    def testInsertionPointHeaderBuildRequest(self):
+        callbacks = GenericMock()
+
+        request = String("GET / HTTP/1.1\r\nHost: lelele\r\n\r\n").getBytes()
+
+        sip = ScannerInsertionPoint(callbacks, request, "Host", "lelele", IScannerInsertionPoint.INS_HEADER, 22, 28)
+        sip.updateContentLength = lambda x: x
+
+        ret = sip.buildRequest(String("lol").getBytes())
+        self.assertTrue("Host: lol" in str(String(ret)))
 
 if __name__ == '__main__':
     unittest.main()

@@ -193,6 +193,8 @@ class ScannerInsertionPoint(IScannerInsertionPoint):
 
         if self.type == IScannerInsertionPoint.INS_PARAM_JSON:
             start, end, payload = self.encodeJson(start, end, payload)
+        elif self.type == IScannerInsertionPoint.INS_HEADER:
+            pass
         else:
             start, end, payload = self.encodeUrl(start, end, payload)
 
