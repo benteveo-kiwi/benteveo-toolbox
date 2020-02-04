@@ -639,8 +639,6 @@ class ToolboxCallbacks(NewThreadCaller):
             self.messageDialog("Confirm status check button says OK.")
             return
 
-        self.sentFailedMsgToSlack = False
-
         endpoints = self.state.endpointTableModel.endpoints
 
         fuzzButton = event.source
@@ -653,11 +651,10 @@ class ToolboxCallbacks(NewThreadCaller):
 
             if endpointsNotReproducibleCount >= 10:
                 log("10 endpoints in a row not endpointsNotReproducibleCount")
-                sendMessageToSlack("10 endpoints in a row not reproducible, bailing from the current scan." % endpoint.url)
+                sendMessageToSlack("10 endpoints in a row not reproducible, bailing from the current scan.")
                 break
 
             if endpoint.fuzzed:
-                log("Did not fuzz '%s' because it was already fuzzed." % endpoint.url)
                 continue
 
             fuzzed = False
@@ -679,6 +676,8 @@ class ToolboxCallbacks(NewThreadCaller):
 
         self.checkMaxConcurrentRequests(futures, 1) # ensure all requests are `isDone()`
         fuzzButton.setText("FUZZ")
+        sendMessageToSlack("Scan finished normally.")
+
 
     def checkMaxConcurrentRequests(self, futures, maxRequests):
         """
@@ -710,10 +709,9 @@ class ToolboxCallbacks(NewThreadCaller):
                         log("Finished fuzzing %s" % endpoint.url)
                     else:
                         log("Fuzzing complete but did not mark as fuzzed becauase no longer reproducible at %s." % endpoint.url)
-                        if not self.sentFailedMsgToSlack:
-                            sendMessageToSlack("A request was no longer reproducible after fuzzing.")
-                            self.sentFailedMsgToSlack = True
 
+                    break
+                    
     def fuzzRequestModel(self, request):
         """
         Sends a RequestModel to be fuzzed by burp.

@@ -34,7 +34,6 @@ def apply_rules(callbacks, rules, request):
     """
     modified = False
     nbModifications = 0
-    print rules
     for rule in rules:
         if rule.type == REPLACE_HEADER_NAME:
             modified, newRequest = replace_header_name(callbacks, rule, request)
@@ -68,6 +67,7 @@ def replace_header_name(callbacks, rule, request):
         if len(splat) >= 2:
             name, value = splat[0], splat[1]
         else:
+            newHeaders.add(header)
             continue # First line of header doesn't have ":"
 
         if name.lower().strip() == rule.search.lower().strip():

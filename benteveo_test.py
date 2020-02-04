@@ -967,22 +967,15 @@ class TestToolbox(unittest.TestCase):
         request.repeatedAnalyzedRequest.headers = headers
         request.repeatedHttpRequestResponse.request = String(firstLine + "\r\n" + secondLine + "\r\n").getBytes()
 
-        utility.called = False
-        def raises(*args):
-            utility.called = True
-            raise IllegalArgumentException()
-
-        burpCallbacks.helpers.updateParameter = raises
-
         insertionPoints = cb.getInsertionPoints(request)
 
         insertionPoints[0].updateContentLength = lambda x: x
         insertionPoints[1].updateContentLength = lambda x: x
         insertionPoints[2].updateContentLength = lambda x: x
 
+        burpCallbacks.helpers.urlEncode.return_value = "LOLLOLLOL"
         ret = insertionPoints[0].buildRequest(String("LOLLOLLOL").getBytes())
 
-        self.assertTrue(utility.called)
         self.assertTrue(str(String(ret)).startswith("GET /LOLLOLLOL/folder1/file.php HTTP/1.1"))
 
         ret = insertionPoints[1].buildRequest(String("LOLLOLLOL").getBytes())
