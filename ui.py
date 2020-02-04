@@ -328,7 +328,6 @@ class PythonFunctionRunnable(Runnable):
             raise
         except:
             logging.exception("Exception in thread")
-            raise
 
 class NewThreadCaller(object):
     """
@@ -698,7 +697,7 @@ class ToolboxCallbacks(NewThreadCaller):
                         future.get()
                     except ExecutionException:
                         log("Failed to fuzz %s" % endpoint.url)
-                        logging.exception("Failure fuzzing %s" % endpoint.url)
+                        logging.error("Failure fuzzing %s" % endpoint.url, exc_info=True)
                         continue
 
                     self.resendRequestModel(request)
@@ -818,7 +817,7 @@ class ToolboxCallbacks(NewThreadCaller):
                 break
             except java.lang.Exception:
                 retries -= 1
-                logging.exception("Java exception while fuzzing individual param, retrying it. %d retries left." % retries)
+                logging.error("Java exception while fuzzing individual param, retrying it. %d retries left." % retries, exc_info=True)
 
         with self.lock:
             for issue in issues:
