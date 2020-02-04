@@ -381,7 +381,7 @@ class ToolboxCallbacks(NewThreadCaller):
 
         # Avoid instantiating during unit test as it is not needed.
         if not utility.INSIDE_UNIT_TEST:
-            self.state.executorService = Executors.newFixedThreadPool(32)
+            self.state.executorService = Executors.newFixedThreadPool(16)
             self.state.perRequestExecutorService = Executors.newFixedThreadPool(self.maxConcurrentRequests)
 
             log("Backslash Powered Scanner preferences:")
@@ -781,7 +781,7 @@ class ToolboxCallbacks(NewThreadCaller):
         endOffset = None
         insertionPoints = []
         for offset, char in enumerate(firstLine):
-            if char in ["/", " "]:
+            if char in ["/", " ", "?"]:
                 if not startOffset:
                     if char == "/":
                         startOffset = offset + 1
@@ -795,7 +795,7 @@ class ToolboxCallbacks(NewThreadCaller):
                     insertionPoints.append(insertionPoint)
                     startOffset = offset + 1
 
-                    if char == " ":
+                    if char in [" ", "?"]:
                         break
 
         return insertionPoints

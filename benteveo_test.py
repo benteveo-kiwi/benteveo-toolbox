@@ -935,6 +935,22 @@ class TestToolbox(unittest.TestCase):
         self.assertEquals(insertionPoints[1].type, IScannerInsertionPoint.INS_URL_PATH_FOLDER)
         self.assertEquals(insertionPoints[2].type, IScannerInsertionPoint.INS_URL_PATH_FILENAME)
 
+    def testGetInsertionPointsPathQueryString(self):
+        cb, state, burpCallbacks = self._ctc()
+
+        headers = ArrayList()
+        headers.add("GET /folder1/folder1/file.php?lel=true&lala=1 HTTP/1.1")
+        headers.add("Host: example.org")
+
+        request = GenericMock()
+        request.repeatedAnalyzedRequest.parameters = []
+        request.repeatedAnalyzedRequest.headers = headers
+
+        insertionPoints = cb.getInsertionPoints(request)
+        self.assertEquals(len(insertionPoints), 3)
+        self.assertEquals(insertionPoints[2].type, IScannerInsertionPoint.INS_URL_PATH_FILENAME)
+        self.assertEquals(insertionPoints[2].value, "file.php")
+
     def testBuildRequestPath(self):
         cb, state, burpCallbacks = self._ctc()
 
