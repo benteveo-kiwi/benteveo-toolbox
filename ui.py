@@ -29,7 +29,7 @@ from javax.swing import JTextField
 from javax.swing import SwingUtilities
 from tables import Table, CellHighlighterRenderer, TableMouseAdapter
 from threading import Lock
-from utility import apply_rules, get_header, log, sendMessageToSlack
+from utility import apply_rules, get_header, log, sendMessageToSlack, importBurpExtension
 from utility import REPLACE_HEADER_NAME, NoSuchHeaderException
 import jarray
 import java.lang.Exception
@@ -165,7 +165,10 @@ class ToolboxUI():
 
         try:
             storedReplacementRules = callbacks.loadExtensionSetting("replacementRules")
-            state.replacementRuleTableModel.importJsonRules(storedReplacementRules)
+            if storedReplacementRules:
+                state.replacementRuleTableModel.importJsonRules(storedReplacementRules)
+            else:
+                log("No replacement rules stored.")
         except (ValueError, KeyError):
             log("Invalid replacement rules stored. Ignoring.")
             pass
@@ -372,6 +375,8 @@ class ToolboxCallbacks(NewThreadCaller):
             state: the state object.
             burpCallbacks: the burp callbacks object.
         """
+
+        # utility.importBurpExtension("lib/backslash-powered-scanner-fork.jar", 'burp.BurpExtender', burpCallbacks)
         self.state = state
         self.burpCallbacks = burpCallbacks
         self.lock = Lock()

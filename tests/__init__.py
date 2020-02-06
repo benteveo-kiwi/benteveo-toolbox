@@ -10,7 +10,9 @@ import ui
 from java.util import ArrayList
 from ui import ToolboxCallbacks, STATUS_OK, STATUS_FAILED
 
-
+import tempfile
+import java.io.File
+import java.io.FileOutputStream
 
 class BaseTestClass(unittest.TestCase):
     """
@@ -234,6 +236,72 @@ class GenericMock(object):
         Makes object subscriptable, e.g. genericMockInstance['test']
         """
         return GenericMock()
+
+class ImportCallbackMock(GenericMock):
+
+    def getStdout(self):
+        """
+        Mocks for import tests.
+        """
+        with tempfile.NamedTemporaryFile() as tmpFile:
+            file = java.io.File(tmpFile.name)
+            tmpFile.close()
+
+            fileOutputStream = java.io.FileOutputStream(file)
+
+            return fileOutputStream
+
+    def getStderr(self):
+        """
+        Mocks for import tests.
+        """
+        with tempfile.NamedTemporaryFile() as tmpFile:
+            file = java.io.File(tmpFile.name)
+            tmpFile.close()
+
+            fileOutputStream = java.io.FileOutputStream(file)
+
+            return fileOutputStream
+
+    def setExtensionName(self, arg):
+        """
+        Mocks for import tests.
+        """
+        pass
+
+    def analyzeResponseVariations(self, arg):
+        """
+        Mocks for import tests.
+        """
+        pass
+
+    def registerScannerCheck(self, *args):
+        """
+        Mocks for import tests.
+        """
+        pass
+
+    def registerExtensionStateListener(self, *args):
+        """
+        Mocks for import tests.
+        """
+        pass
+
+    def registerContextMenuFactory(self, *args):
+        """
+        Mocks for import tests.
+        """
+        pass
+
+    @property
+    def helpers(self):
+        """
+        Mocks for import tests.
+        """
+        import burp.IExtensionHelpers
+        class Mock(GenericMock, burp.IExtensionHelpers):
+            pass
+        return Mock()
 
 
 class TestException(Exception):

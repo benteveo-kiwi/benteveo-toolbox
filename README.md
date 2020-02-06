@@ -10,7 +10,7 @@ java -jar ../jython-standalone-2.7.0.jar -Dpython.path=lib/burp-interfaces.jar -
 To run an individual test:
 
 ```
-java -jar ../jython-standalone-2.7.0.jar -Dpython.path=lib/burp-interfaces.jar tests/benteveo_test.py TestToolbox.testRunAllButtonValidState
+java -jar ../jython-standalone-2.7.0.jar -Dpython.path=lib/burp-interfaces.jar -m unittest tests.test_imports.TestImports.testImportBase
 ```
 
 You need the standalone jython from [here](https://www.jython.org/download.html)

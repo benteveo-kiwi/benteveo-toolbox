@@ -1,3 +1,5 @@
+from burp import IBurpExtenderCallbacks, IExtensionHelpers
+from importlib import import_module
 from java.util import ArrayList
 from java.util import Arrays
 import json
@@ -145,3 +147,129 @@ def sendMessageToSlack(message):
     params = {'text': message}
     req = urllib2.Request(url, headers = {"Content-Type": "application/json"}, data = json.dumps(params))
     urllib2.urlopen(req)
+
+class BurpCallWrapper(IBurpExtenderCallbacks, IExtensionHelpers):
+    """
+    Our own custom implementation of the burp extender callbacks and helper functions.
+
+    It is used for communication with the imported modules. It mainly records calls and then forwards them to the real IBurpExtenderCallbacks/IExtensionHelpers implementation.
+    """
+
+    helpersObject = None
+    wrappedObject = None
+    calls = None
+
+    def __init__(self, wrappedObject):
+        """
+        Main constructor.
+
+        Args:
+            wrappedObject: the real burp callbacks/helper object to wrap, i.e. callbacks or helpers.
+        """
+        self.wrappedObject = wrappedObject
+        self.calls = {}
+        self.helpersObject = None
+
+    def getHelpers(self):
+        """
+        Returns a wrapped version of the helpers object.
+        """
+        if self.helpersObject:
+            return self.helpersObject
+        else:
+            self.helpersObject = BurpCallWrapper(self.wrappedObject.helpers)
+            return self.helpersObject
+
+    def analyzeResponseVariations(self, *args, **kwargs):
+        if len(args[0]) == 0:
+            return
+        else:
+            self.wrappedObject.analyzeResponseVariations(*args, **kwargs)
+
+    def __getattribute__(self, name):
+        """
+        Called when somebody attempts to access an attribute of this class, such as a function.
+
+        We record the call arguments.
+
+        Args:
+            name: the name of the attribute.
+        """
+        # If method is implemented here and not in the interface, return directly.
+        if name in object.__getattribute__(self, "__class__").__dict__:
+            return object.__getattribute__(self, name)
+
+        wrappedObject = self.wrappedObject
+        calls = self.calls
+
+        attr = getattr(wrappedObject, name)
+        isFunction = hasattr(attr, '__call__')
+
+        if isFunction:
+            def wrap(*args, **kwargs):
+                if not name in calls:
+                    calls[name] = []
+
+                calls[name].append((args, kwargs))
+                ret = attr(*args, **kwargs)
+                return ret
+
+            return wrap
+        else:
+            return attr
+
+class BurpExtension(object):
+    """
+    Stores information regarding a loaded burp extension
+    """
+
+    def __init__(self, callWrapper):
+        """
+        Main constructor.
+
+        Args:
+            callWrapper: a BurpCallWrapper object as passed to burpExtender.registerExtenderCallbacks
+        """
+        self.calls = callWrapper.calls
+
+    def getActiveScanners(self):
+        regFunc = 'registerScannerCheck'
+        scanners = []
+        if regFunc in self.calls:
+            for scannerCall in self.calls[regFunc]:
+                args, kwargs = scannerCall
+                scanners.append(args[0])
+
+        return scanners
+
+def getClass(className):
+    splat = className.split(".")
+    moduleName = '.'.join(splat[:-1])
+    className = splat[-1]
+
+    module = import_module(moduleName)
+    return getattr(module, className)
+
+def importBurpExtension(jarFile, burpExtenderClass, callbacks):
+    """
+    Imports a burp module given the location of the JAR file and it's main class.
+
+    It does this by adding the jar to the sys.path, importing the class and calling it with a wrapper that records interactions to the callbacks objects.
+
+    Args:
+        jarFile: the location in disk where the extension's JAR file is located.
+        burpExtenderClass: the name of the burpExtender implementation.
+        callbacks: the burp callbacks object.
+    """
+    try:
+        oldSysPath = sys.path
+
+        burpExtenderImpl = getClass(burpExtenderClass)
+        burpExtender = burpExtenderImpl()
+
+        callbacksWrapper = BurpCallWrapper(callbacks)
+        burpExtender.registerExtenderCallbacks(callbacksWrapper)
+
+        return BurpExtension(callbacksWrapper)
+    finally:
+        sys.path = oldSysPath

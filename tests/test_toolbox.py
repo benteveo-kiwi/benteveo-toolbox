@@ -18,7 +18,7 @@ utility.INSIDE_UNIT_TEST = True
 
 class TestToolbox(BaseTestClass):
     """
-    Main testing class. Contains tests for all classes within the codebase.
+    Main testing class. Contains tests for sections of the code that don't pertain to more specific test files.
     """
     def testCanRunMainWithoutCrashing(self):
         be = BurpExtender()
