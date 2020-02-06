@@ -793,12 +793,17 @@ class ToolboxCallbacks(NewThreadCaller):
         for nb, header in enumerate(headers):
 
             if nb > 0:
-                splat = header.split(":")
-                headerName = splat[0]
-                headerValue = splat[1].lstrip()
+                headerSeparator = ":"
 
-                startOffset = lineStartOffset + len(headerName) + 1 # for ":"
-                if headerValue.startswith(" "):
+                splat = header.split(headerSeparator)
+                headerName = splat[0]
+
+                headerValue = splat[1]
+                startedWithSpace = headerValue.startswith(" ")
+                headerValue = headerValue.lstrip()
+
+                startOffset = lineStartOffset + len(headerName) + len(headerSeparator)
+                if startedWithSpace:
                     startOffset += 1
 
                 endOffset = startOffset + len(headerValue)
@@ -806,7 +811,7 @@ class ToolboxCallbacks(NewThreadCaller):
                 insertionPoint = ScannerInsertionPoint(self.burpCallbacks, request.repeatedHttpRequestResponse.request, headerName, headerValue, IScannerInsertionPoint.INS_HEADER, startOffset, endOffset)
                 insertionPoints.append(insertionPoint)
 
-            lineStartOffset += len(header) + 1 # for newline
+            lineStartOffset += len(header) + len("\r\n")
 
         return insertionPoints
 
