@@ -385,7 +385,7 @@ class ToolboxCallbacks(NewThreadCaller):
             self.state.perRequestExecutorService = Executors.newFixedThreadPool(self.maxConcurrentRequests)
 
             log("Backslash Powered Scanner preferences:")
-            self.extensions.append(utility.importBurpExtension("lib/backslash-powered-scanner-fork.jar", 'burp.BurpExtender', burpCallbacks))
+            self.extensions.append(utility.importBurpExtension("lib/backslash-powered-scanner-all.jar", 'burp.BurpExtender', burpCallbacks))
 
     def refreshButtonClicked(self, event):
         """

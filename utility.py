@@ -260,6 +260,7 @@ def importBurpExtension(jarFile, burpExtenderClass, callbacks):
     """
     try:
         oldSysPath = sys.path
+        sys.path.append(jarFile)
 
         burpExtenderImpl = getClass(burpExtenderClass)
         burpExtender = burpExtenderImpl()

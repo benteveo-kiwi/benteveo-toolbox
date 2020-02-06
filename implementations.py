@@ -10,10 +10,6 @@ from utility import log
 import utility
 import json
 
-utility.importJavaDependency("lib/backslash-powered-scanner-fork.jar")
-
-from burp import Utilities
-
 class Tab(ITab):
     def __init__(self, splitpane):
         self.splitpane = splitpane
