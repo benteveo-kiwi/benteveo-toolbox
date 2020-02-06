@@ -563,21 +563,24 @@ class TestToolbox(BaseTestClass):
 
     def testFuzzRequestModel(self):
         cb, state, burpCallbacks = self._ctc()
-        ui.FastScan = GenericMock()
+
+        extension = GenericMock()
+        scanner = GenericMock()
+        extension.getScannerChecks.return_value = [scanner]
+        cb.extensions = [extension]
         cb.fuzzRequestModel(GenericMock())
 
-        self.assertEquals(ui.FastScan.call_count, 1)
         self.assertEquals(state.executorService.submit.call_count, 5)
 
         state.executorService.submit.return_value.isDone = raise_exception
 
-        classIsDone = False
+        callsIsDone = False
         try:
             cb.fuzzRequestModel(GenericMock())
         except TestException:
-            classIsDone = True
+            callsIsDone = True
 
-        self.assertTrue(classIsDone, "Calls is done.")
+        self.assertTrue(callsIsDone, "Calls is done.")
 
     def testPersistsMetadata(self):
         etm, state, callbacks = self._cetm()

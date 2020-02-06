@@ -8,7 +8,8 @@ class TestImports(BaseTestClass):
         callbacks = ImportCallbackMock()
         burpExtension = utility.importBurpExtension("lib/backslash-powered-scanner-fork.jar", 'burp.BurpExtender', callbacks)
 
-        self.assertEquals(len(burpExtension.getActiveScanners()), 1)
+        self.assertEquals(len(burpExtension.getScannerChecks()), 1)
+        self.assertEquals(len(burpExtension.getExtensionStateListeners()), 2)
 
     def testAnother(self):
         pass

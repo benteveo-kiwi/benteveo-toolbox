@@ -170,21 +170,11 @@ class BurpCallWrapper(IBurpExtenderCallbacks, IExtensionHelpers):
         self.calls = {}
         self.helpersObject = None
 
-    def getHelpers(self):
+    def setExtensionName(self, name):
         """
-        Returns a wrapped version of the helpers object.
+        Prevent this call from reaching burp callbacks as this causes issues.
         """
-        if self.helpersObject:
-            return self.helpersObject
-        else:
-            self.helpersObject = BurpCallWrapper(self.wrappedObject.helpers)
-            return self.helpersObject
-
-    def analyzeResponseVariations(self, *args, **kwargs):
-        if len(args[0]) == 0:
-            return
-        else:
-            self.wrappedObject.analyzeResponseVariations(*args, **kwargs)
+        pass
 
     def __getattribute__(self, name):
         """
@@ -232,15 +222,22 @@ class BurpExtension(object):
         """
         self.calls = callWrapper.calls
 
-    def getActiveScanners(self):
-        regFunc = 'registerScannerCheck'
-        scanners = []
-        if regFunc in self.calls:
-            for scannerCall in self.calls[regFunc]:
-                args, kwargs = scannerCall
-                scanners.append(args[0])
+    def getSimpleCalls(self, func):
+        calls = []
+        try:
+            for call in self.calls[func]:
+                args, kwargs = call
+                calls.append(args[0])
+        except KeyError:
+            pass
 
-        return scanners
+        return calls
+
+    def getScannerChecks(self):
+        return self.getSimpleCalls('registerScannerCheck')
+
+    def getExtensionStateListeners(self):
+        return self.getSimpleCalls('registerExtensionStateListener')
 
 def getClass(className):
     splat = className.split(".")

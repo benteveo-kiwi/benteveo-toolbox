@@ -1,18 +1,17 @@
 from collections import OrderedDict
 from java.awt import Component
 from java.lang import String, IllegalArgumentException, UnsupportedOperationException, Class
+from java.net import URL
+from java.util import ArrayList
 from models import EndpointModel, RequestModel, ReplacementRuleModel
 from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableModel
-import contextlib
-import unittest
-from java.net import URL
-import ui
-from java.util import ArrayList
 from ui import ToolboxCallbacks, STATUS_OK, STATUS_FAILED
-
-import tempfile
+import contextlib
 import java.io.File
 import java.io.FileOutputStream
+import tempfile
+import ui
+import unittest
 
 class BaseTestClass(unittest.TestCase):
     """
@@ -293,14 +292,14 @@ class ImportCallbackMock(GenericMock):
         """
         pass
 
-    @property
-    def helpers(self):
+    def getHelpers(self):
         """
         Mocks for import tests.
         """
         import burp.IExtensionHelpers
         class Mock(GenericMock, burp.IExtensionHelpers):
-            pass
+            def analyzeResponseVariations(self, *args, **kwargs):
+                return
         return Mock()
 
 

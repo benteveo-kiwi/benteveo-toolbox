@@ -40,11 +40,6 @@ import time
 import traceback
 import utility
 
-# This is required because burp's scanning API does not support calling other extensions directly and active scan fails in strange ways. This is unsupported but may give us more flexibility. For more information see ToolboxCallbacks.fuzzRequestModel.
-utility.importJavaDependency("lib/backslash-powered-scanner-fork.jar")
-
-from burp import FastScan, Utilities
-
 STATUS_OK = 0
 STATUS_FAILED = 1
 
@@ -72,6 +67,7 @@ class ToolboxUI():
         """
 
         self.callbacks = ToolboxCallbacks(state, callbacks)
+        state.toolboxCallbacks = self.callbacks
 
         tabs = JTabbedPane()
         resultsPane = self.buildResultsPane(state, callbacks)
@@ -376,10 +372,10 @@ class ToolboxCallbacks(NewThreadCaller):
             burpCallbacks: the burp callbacks object.
         """
 
-        # utility.importBurpExtension("lib/backslash-powered-scanner-fork.jar", 'burp.BurpExtender', burpCallbacks)
         self.state = state
         self.burpCallbacks = burpCallbacks
         self.lock = Lock()
+        self.extensions = []
 
         self.maxConcurrentRequests = 8
 
@@ -389,7 +385,7 @@ class ToolboxCallbacks(NewThreadCaller):
             self.state.perRequestExecutorService = Executors.newFixedThreadPool(self.maxConcurrentRequests)
 
             log("Backslash Powered Scanner preferences:")
-            Utilities(self.burpCallbacks) # backslash powered scanner global state
+            self.extensions.append(utility.importBurpExtension("lib/backslash-powered-scanner-fork.jar", 'burp.BurpExtender', burpCallbacks))
 
     def refreshButtonClicked(self, event):
         """
@@ -732,14 +728,14 @@ class ToolboxCallbacks(NewThreadCaller):
         """
         self.sleep(0.2)
 
-        fastScan = FastScan(self.burpCallbacks)
+        for extension in self.extensions:
+            for activeScanner in extension.getScannerChecks():
+                insertionPoints = self.getInsertionPoints(request)
 
-        insertionPoints = self.getInsertionPoints(request)
-
-        futures = []
-        for insertionPoint in insertionPoints:
-            runnable = PythonFunctionRunnable(self.doActiveScan, args=[fastScan, request.httpRequestResponse, insertionPoint])
-            futures.append(self.state.executorService.submit(runnable))
+                futures = []
+                for insertionPoint in insertionPoints:
+                    runnable = PythonFunctionRunnable(self.doActiveScan, args=[activeScanner, request.httpRequestResponse, insertionPoint])
+                    futures.append(self.state.executorService.submit(runnable))
 
         while len(futures) > 0:
             self.sleep(1)
@@ -861,14 +857,14 @@ class ToolboxCallbacks(NewThreadCaller):
         return insertionPoints
 
 
-    def doActiveScan(self, fastScan, httpRequestResponse, insertionPoint):
+    def doActiveScan(self, scanner, httpRequestResponse, insertionPoint):
         """
         Performs an active scan and stores issues found.
 
         Because the scanner fails sometimes with random errors when HTTP requests timeout and etcetera, we retry a couple of times. This allows us to scan faster because we can be more resilient to errors.
 
         Args:
-            fastScan: the BPS fastscan object.
+            scanner: a IScannerCheck object as returned by extension.getActiveScanners().
             httpRequestResponse: the value to pass to doActiveScan
             insertionPoint: the insertionPoint to scan.
         """
@@ -876,7 +872,7 @@ class ToolboxCallbacks(NewThreadCaller):
         while retries > 0:
             self.sleep(1)
             try:
-                issues = fastScan.doActiveScan(httpRequestResponse, insertionPoint)
+                issues = scanner.doActiveScan(httpRequestResponse, insertionPoint)
                 break
             except java.lang.Exception:
                 retries -= 1

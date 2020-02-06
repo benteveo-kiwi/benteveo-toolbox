@@ -136,7 +136,11 @@ class ExtensionStateListener(IExtensionStateListener):
         self.state.executorService.shutdown()
         self.state.perRequestExecutorService.shutdown()
         self.state.shutdown = True
-        Utilities.unloaded.set(True)
+
+        for extension in self.state.toolboxCallbacks.extensions:
+            for extensionStateListener in extension.getExtensionStateListeners():
+                extensionStateListener.extensionUnloaded()
+
         log("Successfully shut down.")
 
 class ScannerInsertionPoint(IScannerInsertionPoint):
