@@ -1,5 +1,5 @@
 from burp import IBurpExtenderCallbacks, IExtensionHelpers
-from importlib import import_module
+import importlib
 from java.util import ArrayList
 from java.util import Arrays
 import json
@@ -244,7 +244,9 @@ def getClass(className):
     moduleName = '.'.join(splat[:-1])
     className = splat[-1]
 
-    module = import_module(moduleName)
+    del sys.modules[moduleName]
+    module = __import__(moduleName)
+
     return getattr(module, className)
 
 def importBurpExtension(jarFile, burpExtenderClass, callbacks):
@@ -258,16 +260,12 @@ def importBurpExtension(jarFile, burpExtenderClass, callbacks):
         burpExtenderClass: the name of the burpExtender implementation.
         callbacks: the burp callbacks object.
     """
-    try:
-        oldSysPath = sys.path
-        sys.path.append(jarFile)
+    sys.path.append(jarFile)
 
-        burpExtenderImpl = getClass(burpExtenderClass)
-        burpExtender = burpExtenderImpl()
+    burpExtenderImpl = getClass(burpExtenderClass)
+    burpExtender = burpExtenderImpl()
 
-        callbacksWrapper = BurpCallWrapper(callbacks)
-        burpExtender.registerExtenderCallbacks(callbacksWrapper)
+    callbacksWrapper = BurpCallWrapper(callbacks)
+    burpExtender.registerExtenderCallbacks(callbacksWrapper)
 
-        return BurpExtension(callbacksWrapper)
-    finally:
-        sys.path = oldSysPath
+    return BurpExtension(callbacksWrapper)

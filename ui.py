@@ -1,4 +1,4 @@
-from burp import IScannerInsertionPoint
+from burp import IScannerInsertionPoint, IParameter
 from implementations import MessageEditorController, HttpService, ScannerInsertionPoint
 from java.awt import BorderLayout
 from java.awt import Color
@@ -384,8 +384,11 @@ class ToolboxCallbacks(NewThreadCaller):
             self.state.executorService = Executors.newFixedThreadPool(16)
             self.state.perRequestExecutorService = Executors.newFixedThreadPool(self.maxConcurrentRequests)
 
-            log("Backslash Powered Scanner preferences:")
-            self.extensions.append(utility.importBurpExtension("lib/backslash-powered-scanner-all.jar", 'burp.BurpExtender', burpCallbacks))
+            # if the second argument to two of these importBurpExtension calls is the same, the same extension will be loaded twice due to caching issues. The solution is to recompile the whole jar so that the classes do not have the same name.
+            log("[+] Loading Backslash Powered Scanner")
+            self.extensions.append(("bps", utility.importBurpExtension("lib/backslash-powered-scanner-fork.jar", 'burp.BackslashBurpExtender', burpCallbacks)))
+            log("[+] Loading SHELLING")
+            self.extensions.append(("shelling", utility.importBurpExtension("lib/shelling.jar", 'burp.BurpExtender', burpCallbacks)))
 
     def refreshButtonClicked(self, event):
         """
@@ -728,9 +731,14 @@ class ToolboxCallbacks(NewThreadCaller):
         """
         self.sleep(0.2)
 
-        for extension in self.extensions:
+        for name, extension in self.extensions:
             for activeScanner in extension.getScannerChecks():
-                insertionPoints = self.getInsertionPoints(request)
+                if name == "shelling":
+                    onlyParameters = True
+                else:
+                    onlyParameters = False
+
+                insertionPoints = self.getInsertionPoints(request, onlyParameters)
 
                 futures = []
                 for insertionPoint in insertionPoints:
@@ -745,7 +753,7 @@ class ToolboxCallbacks(NewThreadCaller):
                     future.get()
                     futures.remove(future)
 
-    def getInsertionPoints(self, request):
+    def getInsertionPoints(self, request, onlyParameters):
         """
         Gets IScannerInsertionPoint for indicating active scan parameters. See https://portswigger.net/burp/extender/api/burp/IScannerInsertionPoint.html
 
@@ -753,13 +761,22 @@ class ToolboxCallbacks(NewThreadCaller):
 
         Args:
             request: the request to generate insertion points for.
+            onlyParameters: whether to fuzz only get and body parameters. Doesn't fuzz cookies, path parameters nor headers.
         """
         parameters = request.repeatedAnalyzedRequest.parameters
 
         insertionPoints = []
         for parameter in parameters:
+
+            if parameter.type == IParameter.PARAM_COOKIE and onlyParameters:
+                continue
+
             insertionPoint = ScannerInsertionPoint(self.burpCallbacks, request.repeatedHttpRequestResponse.request, parameter.name, parameter.value, parameter.type, parameter.valueStart, parameter.valueEnd)
             insertionPoints.append(insertionPoint)
+
+
+        if onlyParameters:
+            return insertionPoints
 
         for pathInsertionPoint in self.getPathInsertionPoints(request):
             insertionPoints.append(pathInsertionPoint)
@@ -879,9 +896,10 @@ class ToolboxCallbacks(NewThreadCaller):
                 logging.error("Java exception while fuzzing individual param, retrying it. %d retries left." % retries, exc_info=True)
 
         with self.lock:
-            for issue in issues:
-                sendMessageToSlack("Found something interesting! apparently '%s'. Do you want to check it out?" % (issue.issueName))
-                self.burpCallbacks.addScanIssue(issue)
+            if issues:
+                for issue in issues:
+                    sendMessageToSlack("Found something interesting! apparently '%s'. Do you want to check it out?" % (issue.issueName))
+                    self.burpCallbacks.addScanIssue(issue)
 
     def sleep(self, sleepTime):
         """
