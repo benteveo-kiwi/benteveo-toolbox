@@ -567,7 +567,7 @@ class TestToolbox(BaseTestClass):
         extension = GenericMock()
         scanner = GenericMock()
         extension.getScannerChecks.return_value = [scanner]
-        cb.extensions = [extension]
+        cb.extensions = [("scanner_name", extension)]
         cb.fuzzRequestModel(GenericMock())
 
         self.assertEquals(state.executorService.submit.call_count, 5)
@@ -685,8 +685,23 @@ class TestToolbox(BaseTestClass):
         request.repeatedAnalyzedRequest.parameters = [parameter, parameter, parameter]
         request.repeatedAnalyzedRequest.headers = [parameter, parameter, parameter] # gonna skip the first line in the header
 
-        insertionPoints = cb.getInsertionPoints(request)
+        insertionPoints = cb.getInsertionPoints(request, False)
         self.assertEquals(len(insertionPoints), 5)
+
+    def testGetInsertionPointsOnlyParameters(self):
+        cb, state, burpCallbacks = self._ctc()
+
+        request = GenericMock()
+        parameter = GenericMock()
+        parameter.name = "lol"
+        parameter.value = "lol"
+        parameter.type = 1
+        request.repeatedAnalyzedRequest.parameters = [parameter, parameter, parameter]
+        request.repeatedAnalyzedRequest.headers = [parameter, parameter, parameter] # gonna skip the first line in the header
+
+        onlyParameters = True
+        insertionPoints = cb.getInsertionPoints(request, onlyParameters)
+        self.assertEquals(len(insertionPoints), 3)
 
     def testGetInsertionPointsPath(self):
         cb, state, burpCallbacks = self._ctc()
@@ -737,7 +752,7 @@ class TestToolbox(BaseTestClass):
         request.repeatedAnalyzedRequest.headers = headers
         request.repeatedHttpRequestResponse.request = String(firstLine + "\r\n" + secondLine + "\r\n").getBytes()
 
-        insertionPoints = cb.getInsertionPoints(request)
+        insertionPoints = cb.getInsertionPoints(request, False)
 
         insertionPoints[0].updateContentLength = lambda x: x
         insertionPoints[1].updateContentLength = lambda x: x
@@ -827,7 +842,7 @@ class TestToolbox(BaseTestClass):
         request.repeatedAnalyzedRequest.parameters = []
         request.repeatedAnalyzedRequest.headers = headers
 
-        insertionPoints = cb.getInsertionPoints(request)
+        insertionPoints = cb.getInsertionPoints(request, False)
         self.assertEquals(len(insertionPoints), 2)
         self.assertEquals(insertionPoints[0].type, IScannerInsertionPoint.INS_HEADER)
         self.assertEquals(insertionPoints[0].baseValue, "example.org")

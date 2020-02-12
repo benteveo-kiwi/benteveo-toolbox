@@ -761,7 +761,7 @@ class ToolboxCallbacks(NewThreadCaller):
 
         Args:
             request: the request to generate insertion points for.
-            onlyParameters: whether to fuzz only get and body parameters. Doesn't fuzz cookies, path parameters nor headers.
+            onlyParameters: whether to fuzz only get and body parameters. Doesn't fuzz cookies, path parameters nor headers. This saves time when running shelling which takes a long time due to a long payload list.
         """
         parameters = request.repeatedAnalyzedRequest.parameters
 
