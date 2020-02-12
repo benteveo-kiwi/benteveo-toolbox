@@ -50,3 +50,11 @@ Once you have populated the field, a user of this application can click the `Che
 Clicking the `Resend ALL` button will, if the session check has previously been successful, re-send all requests that have been previously made with the transformation rules applied and store the results.
 
 Clicking the `FUZZ` button will go through requests and, if it is able to find requests whose status code is the same for both the original request and the modified request, send them to Burp's active scan. The idea is to only fuzz one request per endpoint and only initiate fuzzing if we can be reasonable sure we have a valid session for the endpoint.
+
+## Merging into master
+
+In order to merge code from the development branch to the master branch we should do and end to end manual test. This verifies the application is in a working test and avoids the situation where we send a bunch of traffic to a client site and the test results are not valid.
+
+No code should be merged into the master branch without manually verifying the test plan passes.
+
+The test plan is [here](https://www.notion.so/benteveo/Toolbox-Test-Plan-da007fd6df4243268fbc2adfd53b3eb1). You can duplicate the database and run the test plan, linking the test plan on your PR.
