@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from java.awt import Color
+from java.awt.event import MouseAdapter
 from java.lang import Boolean
 from java.lang import Class
 from java.lang import Integer
@@ -10,11 +11,14 @@ from javax.swing.table import AbstractTableModel
 from javax.swing.table import DefaultTableCellRenderer
 from models import EndpointModel, RequestModel, ReplacementRuleModel
 from threading import Lock
-from java.awt.event import MouseAdapter
+from utility import log
 import json
 import logging
 import sys
 import utility
+
+class NoResponseException(Exception):
+    pass
 
 class Table(JTable):
     """
@@ -289,8 +293,9 @@ class EndpointTableModel(AbstractTableModel):
         with self.lock:
 
             if not httpRequestResponse.response:
-                log("No response received on update call()")
-                return
+                msg = "No response received on update call() for %s. Is the server now offline?" % (requestModel.analyzedRequest.url)
+                log(msg)
+                raise NoResponseException(msg)
 
             requestModel.repeatedHttpRequestResponse = httpRequestResponse
             requestModel.repeatedAnalyzedResponse = self.callbacks.helpers.analyzeResponse(httpRequestResponse.response)

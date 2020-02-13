@@ -27,7 +27,7 @@ from javax.swing import JTable
 from javax.swing import JTextArea
 from javax.swing import JTextField
 from javax.swing import SwingUtilities
-from tables import Table, CellHighlighterRenderer, TableMouseAdapter
+from tables import Table, CellHighlighterRenderer, TableMouseAdapter, NoResponseException
 from threading import Lock
 from utility import apply_rules, get_header, log, sendMessageToSlack, importBurpExtension
 from utility import REPLACE_HEADER_NAME, NoSuchHeaderException
@@ -629,7 +629,6 @@ class ToolboxCallbacks(NewThreadCaller):
         newResponse = self.burpCallbacks.makeHttpRequest(target, modifiedRequest)
         self.state.endpointTableModel.update(request, newResponse)
 
-
     def fuzzButtonClicked(self, event):
         """
         Handles clicks to the FUZZ button.
@@ -650,39 +649,53 @@ class ToolboxCallbacks(NewThreadCaller):
 
         futures = []
         endpointsNotReproducibleCount = 0
-        for key in endpoints:
-            endpoint = endpoints[key]
+        nbFuzzedTotal = 0
+        try:
+            for key in endpoints:
+                endpoint = endpoints[key]
 
-            if endpointsNotReproducibleCount >= 10:
-                log("10 endpoints in a row not endpointsNotReproducibleCount")
-                sendMessageToSlack("10 endpoints in a row not reproducible, bailing from the current scan.")
-                break
-
-            if endpoint.fuzzed:
-                continue
-
-            fuzzed = False
-            for request in endpoint.requests:
-                self.sleep(0.2)
-                self.resendRequestModel(request)
-                if request.wasReproducible():
-                    endpointsNotReproducibleCount = 0
-
-                    runnable = PythonFunctionRunnable(self.fuzzRequestModel, args=[request])
-                    futures.append((endpoint, request, self.state.perRequestExecutorService.submit(runnable)))
-
-                    fuzzed = True
+                if endpointsNotReproducibleCount >= 10:
+                    log("10 endpoints in a row not endpointsNotReproducibleCount")
+                    sendMessageToSlack("10 endpoints in a row not reproducible, bailing from the current scan.")
                     break
 
-            if not fuzzed:
-                endpointsNotReproducibleCount += 1
-                log("Did not fuzz '%s' because no reproducible requests are possible with the current replacement rules" % endpoint.url)
+                if endpoint.fuzzed:
+                    continue
 
-            self.checkMaxConcurrentRequests(futures, self.maxConcurrentRequests)
+                fuzzed = False
+                for request in endpoint.requests:
+                    self.sleep(0.2)
+                    try:
+                        self.resendRequestModel(request)
+                    except NoResponseException:
+                        continue
 
-        self.checkMaxConcurrentRequests(futures, 1) # ensure all requests are `isDone()`
+                    if request.wasReproducible():
+                        endpointsNotReproducibleCount = 0
+                        nbFuzzedTotal += 1
+
+                        runnable = PythonFunctionRunnable(self.fuzzRequestModel, args=[request])
+                        futures.append((endpoint, request, self.state.perRequestExecutorService.submit(runnable)))
+
+                        fuzzed = True
+                        break
+
+                if not fuzzed:
+                    endpointsNotReproducibleCount += 1
+                    log("Did not fuzz '%s' because no reproducible requests are possible with the current replacement rules" % endpoint.url)
+
+                self.checkMaxConcurrentRequests(futures, self.maxConcurrentRequests)
+
+            self.checkMaxConcurrentRequests(futures, 1) # ensure all requests are `isDone()`
+        except:
+            msg = "Scan failed due to an unknown exception."
+            sendMessageToSlack(msg)
+            logging.exception(msg)
+
         fuzzButton.setText("FUZZ")
-        sendMessageToSlack("Scan finished normally.")
+
+        if nbFuzzedTotal > 0:
+            sendMessageToSlack("Scan finished normally.")
 
 
     def checkMaxConcurrentRequests(self, futures, maxRequests):
