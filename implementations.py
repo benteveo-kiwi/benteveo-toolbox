@@ -133,7 +133,7 @@ class ExtensionStateListener(IExtensionStateListener):
         self.state.perRequestExecutorService.shutdown()
         self.state.shutdown = True
 
-        for extension in self.state.toolboxCallbacks.extensions:
+        for extensionName, extension in self.state.toolboxCallbacks.extensions:
             for extensionStateListener in extension.getExtensionStateListeners():
                 extensionStateListener.extensionUnloaded()
 
