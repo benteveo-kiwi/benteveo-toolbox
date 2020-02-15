@@ -384,11 +384,15 @@ class ToolboxCallbacks(NewThreadCaller):
             self.state.executorService = Executors.newFixedThreadPool(16)
             self.state.perRequestExecutorService = Executors.newFixedThreadPool(self.maxConcurrentRequests)
 
-            # if the second argument to two of these importBurpExtension calls is the same, the same extension will be loaded twice due to caching issues. The solution is to recompile the whole jar so that the classes do not have the same name.
+            # Beware: if the second argument to two of these importBurpExtension calls is the same, the same extension will be loaded twice. The solution is to recompile the JARs so that the classes do not have the same name.
             log("[+] Loading Backslash Powered Scanner")
             self.extensions.append(("bps", utility.importBurpExtension("lib/backslash-powered-scanner-fork.jar", 'burp.BackslashBurpExtender', burpCallbacks)))
+
             log("[+] Loading SHELLING")
             self.extensions.append(("shelling", utility.importBurpExtension("lib/shelling.jar", 'burp.BurpExtender', burpCallbacks)))
+
+            log("[+] Loading ParamMiner")
+            self.extensions.append(("paramminer", utility.importBurpExtension("lib/param-miner-fork.jar", 'paramminer.BurpExtender', burpCallbacks)))
 
     def refreshButtonClicked(self, event):
         """

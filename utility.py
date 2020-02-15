@@ -1,9 +1,10 @@
 from burp import IBurpExtenderCallbacks, IExtensionHelpers
-import importlib
 from java.util import ArrayList
 from java.util import Arrays
+import importlib
 import json
 import re
+import string
 import sys
 import urllib2
 
@@ -130,10 +131,6 @@ def log(message):
     """
     print message +"\n",
 
-def importJavaDependency(source):
-    if source not in sys.path:
-        sys.path.append(source)
-
 def sendMessageToSlack(message):
     """
     Sends a message to the Benteveo Kiwi slack channel.
@@ -180,7 +177,7 @@ class BurpCallWrapper(IBurpExtenderCallbacks, IExtensionHelpers):
         """
         Called when somebody attempts to access an attribute of this class, such as a function.
 
-        We record the call arguments.
+        The purpose of this function is to record the call arguments for later access.
 
         Args:
             name: the name of the attribute.
@@ -239,15 +236,25 @@ class BurpExtension(object):
     def getExtensionStateListeners(self):
         return self.getSimpleCalls('registerExtensionStateListener')
 
+    def getContextMenuFactories(self):
+        return self.getSimpleCalls('registerContextMenuFactory')
+
 def getClass(className):
-    splat = className.split(".")
-    moduleName = '.'.join(splat[:-1])
-    className = splat[-1]
+    """
+    Given a class name, it gets a reference to it that can later be instantiated.
 
-    del sys.modules[moduleName]
-    module = __import__(moduleName)
+    It does not make use of `importlib.import_module` because Java modules cannot be imported in this way. See https://stackoverflow.com/a/44040971 for more information
 
-    return getattr(module, className)
+    Args:
+        className: the class name to get a reference to. You should not pass untrusted input to this function because it is exec'ed.
+    """
+
+    for c in className:
+        if c != '.' and c not in string.ascii_letters:
+            raise Exception()
+
+    exec "import %s as tmpClass" % className
+    return tmpClass
 
 def importBurpExtension(jarFile, burpExtenderClass, callbacks):
     """

@@ -10,6 +10,4 @@ class TestImports(BaseTestClass):
 
         self.assertEquals(len(burpExtension.getScannerChecks()), 1)
         self.assertEquals(len(burpExtension.getExtensionStateListeners()), 2)
-
-    def testAnother(self):
-        pass
+        self.assertEquals(len(burpExtension.getContextMenuFactories()), 1)
