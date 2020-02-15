@@ -650,6 +650,7 @@ class ToolboxCallbacks(NewThreadCaller):
         futures = []
         endpointsNotReproducibleCount = 0
         nbFuzzedTotal = 0
+        nbExceptions = 0
         try:
             for key in endpoints:
                 endpoint = endpoints[key]
@@ -684,19 +685,26 @@ class ToolboxCallbacks(NewThreadCaller):
                     endpointsNotReproducibleCount += 1
                     log("Did not fuzz '%s' because no reproducible requests are possible with the current replacement rules" % endpoint.url)
 
-                self.checkMaxConcurrentRequests(futures, self.maxConcurrentRequests)
+                nbExceptions += self.checkMaxConcurrentRequests(futures, self.maxConcurrentRequests)
 
-            self.checkMaxConcurrentRequests(futures, 1) # ensure all requests are `isDone()`
+            nbExceptions += self.checkMaxConcurrentRequests(futures, 1) # ensure all requests are `isDone()`
+        except ShutdownException:
+                log("Scan shutdown.")
+                return
         except:
             msg = "Scan failed due to an unknown exception."
             sendMessageToSlack(msg)
-            logging.exception(msg)
+            logging.error(msg, exc_info=True)
+            fuzzButton.setText("Fuzz fail.")
+            return
+
 
         fuzzButton.setText("FUZZ")
 
-        if nbFuzzedTotal > 0:
-            sendMessageToSlack("Scan finished normally.")
-
+        if nbFuzzedTotal > 0 and nbExceptions == 0:
+            sendMessageToSlack("Scan finished normally with no exceptions.")
+        else:
+            sendMessageToSlack("Scan finished normally with %s exceptions." % nbExceptions)
 
     def checkMaxConcurrentRequests(self, futures, maxRequests):
         """
@@ -707,7 +715,11 @@ class ToolboxCallbacks(NewThreadCaller):
         Args:
             futures: futures as defined in `fuzzButtonClicked`
             maxRequests: maximum requests that should be pending at this time.
+
+        Return:
+            int: number of exceptions thrown during scan. 0 means no errors.
         """
+        nbExceptions = 0
         while len(futures) >= maxRequests:
             self.sleep(1)
             for tuple in futures:
@@ -720,6 +732,7 @@ class ToolboxCallbacks(NewThreadCaller):
                     except ExecutionException:
                         log("Failed to fuzz %s" % endpoint.url)
                         logging.error("Failure fuzzing %s" % endpoint.url, exc_info=True)
+                        nbExceptions += 1
                         continue
 
                     self.resendRequestModel(request)
@@ -730,6 +743,8 @@ class ToolboxCallbacks(NewThreadCaller):
                         log("Fuzzing complete but did not mark as fuzzed becauase no longer reproducible at %s." % endpoint.url)
 
                     break
+
+        return nbExceptions
 
     def fuzzRequestModel(self, request):
         """
