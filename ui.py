@@ -768,7 +768,7 @@ class ToolboxCallbacks(NewThreadCaller):
 
         Burp has a helper function for running active scans, however I am not using it for two reasons. Firstly, as of 2.x the mechanism for configuring scans got broken in a re-shuffle of burp code. Secondly, burp's session handling for large scans is not perfect, once the session expires the scan continues to fuzz requests with an expired session, and implementing my own session handling on top of IScannerCheck objects is not possible due to a bug in getStatus() where requests that have errored out still have a "scanning" status. If these issues are resolved we can get rid of this workaround.
 
-        We work around this by importing Backslash powered scanner's FastScan and calling it directly https://github.com/PortSwigger/backslash-powered-scanner/blob/c861d56a3b84e4720bb0c352a22999012a7b2bc3/src/burp/BurpExtender.java#L55. We maintain a fork of BPS benteveo-kiwi for making private classes public.
+        We work around this by importing extensions' JAR files and interacting with them using the same APIs that burp uses.
 
         Args:
             request: an instance of RequestModel.
