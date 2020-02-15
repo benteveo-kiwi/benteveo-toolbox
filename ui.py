@@ -633,8 +633,6 @@ class ToolboxCallbacks(NewThreadCaller):
         """
         Handles clicks to the FUZZ button.
 
-        We attempt to fuzz only one request per endpoint, using our own criteria to differentiate between endpoints as defined in `EndpontTableModel.generateEndpointHash`. For each endpoint, we iterate through requests until we can find a single request whose status code is the same between both the original and the repeated request, we only fuzz once. Note this tool will only succeed if the user has clicked the check button.
-
         Args:
             event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
         """
@@ -642,69 +640,87 @@ class ToolboxCallbacks(NewThreadCaller):
             self.messageDialog("Confirm status check button says OK.")
             return
 
-        endpoints = self.state.endpointTableModel.endpoints
-
         fuzzButton = event.source
         fuzzButton.setText("Fuzzing...")
 
-        futures = []
-        endpointsNotReproducibleCount = 0
-        nbFuzzedTotal = 0
-        nbExceptions = 0
         try:
-            for key in endpoints:
-                endpoint = endpoints[key]
-
-                if endpointsNotReproducibleCount >= 10:
-                    log("10 endpoints in a row not endpointsNotReproducibleCount")
-                    sendMessageToSlack("10 endpoints in a row not reproducible, bailing from the current scan.")
-                    break
-
-                if endpoint.fuzzed:
-                    continue
-
-                fuzzed = False
-                for request in endpoint.requests:
-                    self.sleep(0.2)
-                    try:
-                        self.resendRequestModel(request)
-                    except NoResponseException:
-                        continue
-
-                    if request.wasReproducible():
-                        endpointsNotReproducibleCount = 0
-                        nbFuzzedTotal += 1
-
-                        runnable = PythonFunctionRunnable(self.fuzzRequestModel, args=[request])
-                        futures.append((endpoint, request, self.state.perRequestExecutorService.submit(runnable)))
-
-                        fuzzed = True
-                        break
-
-                if not fuzzed:
-                    endpointsNotReproducibleCount += 1
-                    log("Did not fuzz '%s' because no reproducible requests are possible with the current replacement rules" % endpoint.url)
-
-                nbExceptions += self.checkMaxConcurrentRequests(futures, self.maxConcurrentRequests)
-
-            nbExceptions += self.checkMaxConcurrentRequests(futures, 1) # ensure all requests are `isDone()`
+            nbFuzzedTotal, nbExceptions = self.fuzzEndpoints()
         except ShutdownException:
                 log("Scan shutdown.")
                 return
         except:
+            if utility.INSIDE_UNIT_TEST:
+                raise
+
             msg = "Scan failed due to an unknown exception."
             sendMessageToSlack(msg)
             logging.error(msg, exc_info=True)
             fuzzButton.setText("Fuzz fail.")
             return
 
-
         fuzzButton.setText("FUZZ")
 
         if nbFuzzedTotal > 0 and nbExceptions == 0:
             sendMessageToSlack("Scan finished normally with no exceptions.")
-        else:
-            sendMessageToSlack("Scan finished normally with %s exceptions." % nbExceptions)
+        elif nbFuzzedTotal > 0:
+            sendMessageToSlack("Scan finished with %s exceptions." % nbExceptions)
+
+    def fuzzEndpoints(self):
+        """
+        Fuzzes endpoints as present in the state based on the user preferences.
+
+        We attempt to fuzz only one request per endpoint, using our own criteria to differentiate between endpoints as defined in `EndpontTableModel.generateEndpointHash`. For each endpoint, we iterate through requests until we can find a single request whose status code is the same between both the original and the repeated request, we only fuzz once. Requests are ordered based on the number of parameters they have, giving preference to those with the higher number of parameters in order to attempt to maximise attack surface.
+
+        Returns:
+            tuple: (int, int) number of items scanned and number of items for which the scan could not be completed due to an exception.
+        """
+
+        endpoints = self.state.endpointTableModel.endpoints
+
+        futures = []
+        endpointsNotReproducibleCount = 0
+        nbFuzzedTotal = 0
+        nbExceptions = 0
+        for key in endpoints:
+            endpoint = endpoints[key]
+
+            if endpointsNotReproducibleCount >= 10:
+                log("10 endpoints in a row not reproducible.")
+                sendMessageToSlack("10 endpoints in a row not reproducible, bailing from the current scan.")
+                break
+
+            if endpoint.fuzzed:
+                continue
+
+            sortedRequests = sorted(endpoint.requests, key=lambda x: len(x.analyzedRequest.parameters), reverse=True)
+
+            fuzzed = False
+            for request in sortedRequests:
+                self.sleep(0.2)
+                try:
+                    self.resendRequestModel(request)
+                except NoResponseException:
+                    continue
+
+                if request.wasReproducible():
+                    endpointsNotReproducibleCount = 0
+                    nbFuzzedTotal += 1
+
+                    runnable = PythonFunctionRunnable(self.fuzzRequestModel, args=[request])
+                    futures.append((endpoint, request, self.state.perRequestExecutorService.submit(runnable)))
+
+                    fuzzed = True
+                    break
+
+            if not fuzzed:
+                endpointsNotReproducibleCount += 1
+                log("Did not fuzz '%s' because no reproducible requests are possible with the current replacement rules" % endpoint.url)
+
+            nbExceptions += self.checkMaxConcurrentRequests(futures, self.maxConcurrentRequests)
+
+        nbExceptions += self.checkMaxConcurrentRequests(futures, 1) # ensure all requests are `isDone()`
+
+        return nbFuzzedTotal, nbExceptions
 
     def checkMaxConcurrentRequests(self, futures, maxRequests):
         """
