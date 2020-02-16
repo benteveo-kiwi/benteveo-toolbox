@@ -326,7 +326,8 @@ class PythonFunctionRunnable(Runnable):
             log("Thread shutting down")
             raise
         except:
-            logging.exception("Exception in thread")
+            logging.error("Exception in thread", exc_info=True)
+            raise
 
 class NewThreadCaller(object):
     """

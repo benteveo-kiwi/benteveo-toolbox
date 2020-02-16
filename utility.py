@@ -3,10 +3,14 @@ from java.util import ArrayList
 from java.util import Arrays
 import importlib
 import json
+import logging
 import re
 import string
 import sys
 import urllib2
+
+# Logger for writing to stdout.
+STDOUT_LOGGER = None
 
 # Constants for the add replacement form.
 REPLACE_HEADER_NAME = "Replace by header name"
@@ -120,6 +124,20 @@ def get_header(callbacks, request, header_name):
 
     raise NoSuchHeaderException("Header not found.")
 
+def setupLogging():
+    format = '[%(levelname)s %(asctime)s]: %(message)s'
+    logging.basicConfig(format=format, level=logging.DEBUG, stream=sys.stderr)
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter(format)
+    handler.setFormatter(formatter)
+
+    global STDOUT_LOGGER
+    STDOUT_LOGGER = logging.getLogger("stdoutLogger")
+    STDOUT_LOGGER.propagate = False
+    STDOUT_LOGGER.addHandler(handler)
+
 def log(message):
     """
     Writes a log to Burp's stdout logging.
@@ -129,7 +147,7 @@ def log(message):
     Args:
         Message to print.
     """
-    print message +"\n",
+    STDOUT_LOGGER.info(message)
 
 def sendMessageToSlack(message):
     """

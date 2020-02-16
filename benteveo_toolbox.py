@@ -27,6 +27,8 @@ class BurpExtender(IBurpExtender):
             callbacks: contains a burp callbacks object, as documented here https://portswigger.net/burp/extender/api/burp/IBurpCallbacks.html
         """
 
+        utility.setupLogging()
+
         state = State()
 
         # Endpoint table models are in charge of storing and disiplaying information in tables.
