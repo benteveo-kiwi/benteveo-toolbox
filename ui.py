@@ -1,5 +1,5 @@
 from burp import IScannerInsertionPoint, IParameter
-from implementations import MessageEditorController, HttpService, ScannerInsertionPoint
+from implementations import MessageEditorController, HttpService, ScannerInsertionPoint, ContextMenuInvocation
 from java.awt import BorderLayout
 from java.awt import Color
 from java.awt import Component
@@ -793,6 +793,12 @@ class ToolboxCallbacks(NewThreadCaller):
                 for insertionPoint in insertionPoints:
                     runnable = PythonFunctionRunnable(self.doActiveScan, args=[activeScanner, request.httpRequestResponse, insertionPoint])
                     futures.append(self.state.executorService.submit(runnable))
+
+            for factory in extension.getContextMenuFactories():
+                if name == "paramminer":
+                    menuItems = factory.createMenuItems(ContextMenuInvocation([request.httpRequestResponse]))
+                    for menuItem in menuItems:
+                        menuItem.doClick() # trigger "Guess headers/parameters/JSON!" functionality
 
         while len(futures) > 0:
             self.sleep(1)

@@ -1,3 +1,4 @@
+from burp import IContextMenuInvocation
 from burp import IExtensionStateListener
 from burp import IHttpListener
 from burp import IHttpService
@@ -7,8 +8,8 @@ from burp import ITab
 from java.io import ByteArrayOutputStream
 from java.lang import IllegalArgumentException, UnsupportedOperationException, String
 from utility import log
-import utility
 import json
+import utility
 
 class Tab(ITab):
     def __init__(self, splitpane):
@@ -263,3 +264,23 @@ class ScannerInsertionPoint(IScannerInsertionPoint):
 
     def getInsertionPointType(self):
         return self.type
+
+class ContextMenuInvocation(IContextMenuInvocation):
+    """
+    Our custom implementation of IContextMenuInvocation. It is used for interacting with burp extensions through fake clicks.
+    """
+
+    def __init__(self, httpRequestResponses):
+        """
+        Main constructor method.
+
+        Args:
+            httpRequestResponses: a list of httpRequestResponse objects that will be returned when `getSelectedMessages` is invoked on this object.
+        """
+        self.httpRequestResponses = httpRequestResponses
+
+    def getSelectedMessages(self):
+        """
+        Return stored httpRequestResponses.
+        """
+        return self.httpRequestResponses
