@@ -810,7 +810,6 @@ class TestToolbox(BaseTestClass):
         sip.updateContentLength = lambda x: x
 
         ret = sip.buildRequest(String("evil <awfafw ''\"").getBytes())
-        print str(String(ret))
 
         self.assertTrue("<xml a=\"evil &lt;awfafw &apos;&apos;&quot;\">whatever</xml>" in str(String(ret)))
 
