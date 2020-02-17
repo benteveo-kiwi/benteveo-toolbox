@@ -583,7 +583,8 @@ class ReplacementRuleTableModel(AbstractTableModel):
         jsonObject = json.loads(jsonRules)
         rules = []
         for element in jsonObject:
-            rules.append(ReplacementRuleModel(element['id'], element['type'], element['search'], element['replacement']))
+            self.id_counter += 1
+            rules.append(ReplacementRuleModel(self.id_counter, element['type'], element['search'], element['replacement']))
 
         with self.lock:
             self.rules = rules
