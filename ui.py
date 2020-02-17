@@ -127,7 +127,6 @@ class ToolboxUI():
         scopeText = callbacks.loadExtensionSetting("scopes")
         state.scopeTextArea.setText(scopeText)
 
-
         scope.add(title)
         scope.add(refresh)
         scope.add(textarea)

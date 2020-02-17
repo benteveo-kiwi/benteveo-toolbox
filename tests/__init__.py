@@ -214,6 +214,8 @@ class GenericMock(object):
         """
         This is a hard-coded method that is required because of java type issues. It is required in many tests so it's less repetitive to put it here.
         """
+        if args[0] == "scopes":
+            return None
         return "setting"
 
     def __len__(self):
