@@ -619,9 +619,7 @@ class ToolboxCallbacks(NewThreadCaller):
 
     def resendRequestModel(self, request):
         """
-        Resends a request model and performs basic analysis on whether it responds with the same state and status code.
-
-        This method gets called from each thread. Operations on the global state need to be thread-safe.
+        Resends a request model and update the RequestModel object with the new response.
 
         Args:
             request: the RequestModel to resend.
@@ -799,12 +797,12 @@ class ToolboxCallbacks(NewThreadCaller):
 
                 futures = []
                 for insertionPoint in insertionPoints:
-                    runnable = PythonFunctionRunnable(self.doActiveScan, args=[activeScanner, request.httpRequestResponse, insertionPoint])
+                    runnable = PythonFunctionRunnable(self.doActiveScan, args=[activeScanner, request.repeatedHttpRequestResponse, insertionPoint])
                     futures.append(self.state.executorService.submit(runnable))
 
             for factory in extension.getContextMenuFactories():
                 if name == "paramminer":
-                    menuItems = factory.createMenuItems(ContextMenuInvocation([request.httpRequestResponse]))
+                    menuItems = factory.createMenuItems(ContextMenuInvocation([request.repeatedHttpRequestResponse]))
                     for menuItem in menuItems:
                         menuItem.doClick() # trigger "Guess headers/parameters/JSON!" functionality.
 
@@ -836,7 +834,6 @@ class ToolboxCallbacks(NewThreadCaller):
 
             insertionPoint = ScannerInsertionPoint(self.burpCallbacks, request.repeatedHttpRequestResponse.request, parameter.name, parameter.value, parameter.type, parameter.valueStart, parameter.valueEnd)
             insertionPoints.append(insertionPoint)
-
 
         if onlyParameters:
             return insertionPoints
@@ -945,7 +942,7 @@ class ToolboxCallbacks(NewThreadCaller):
 
         Args:
             scanner: a IScannerCheck object as returned by extension.getActiveScanners().
-            httpRequestResponse: the value to pass to doActiveScan
+            httpRequestResponse: the value to pass to doActiveScan. This should be the modified request, i.e. repeatedHttpRequestResponse.
             insertionPoint: the insertionPoint to scan.
         """
         retries = 5
