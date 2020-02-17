@@ -123,11 +123,17 @@ class ToolboxUI():
 
         textarea = self.getTextArea()
         state.scopeTextArea = textarea.viewport.view
-        state.scopeTextArea.setText(callbacks.loadExtensionSetting("scopes"))
+
+        scopeText = callbacks.loadExtensionSetting("scopes")
+        state.scopeTextArea.setText(scopeText)
+
 
         scope.add(title)
         scope.add(refresh)
         scope.add(textarea)
+
+        if scopeText:
+            refresh.doClick() # refresh automatically to save users one click.
 
         return scope
 
