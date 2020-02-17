@@ -508,6 +508,9 @@ class ToolboxCallbacks(NewThreadCaller):
         """
         rule = self.state.replacementRuleTableModel.selected
 
+        if not rule:
+            return
+
         try:
             type, search, replacement = self.buildAddEditPrompt(rule.type, rule.search, rule.replacement)
         except InvalidInputException:
