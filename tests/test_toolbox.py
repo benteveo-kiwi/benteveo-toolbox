@@ -785,6 +785,35 @@ class TestToolbox(BaseTestClass):
         ret = sip.buildRequest(String("herecomethe\"quotes").getBytes())
         self.assertTrue('{"param":"herecomethe\\"quotes"}' in str(String(ret)))
 
+    def testBuildRequestXml(self):
+        callbacks = GenericMock()
+
+        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: lelel\r\n\r\n<xml>lol</xml>\r\n").getBytes()
+
+        callbacks.helpers.updateParameter.raise = UnsupportedOperationException
+
+        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_XML, 60, 63)
+        sip.updateContentLength = lambda x: x
+
+        ret = sip.buildRequest(String("evil <awfafw ''\"").getBytes())
+
+        self.assertTrue("<xml>evil &lt;awfafw &apos;&apos;&quot;</xml>" in str(String(ret)))
+
+    def testBuildRequestXmlAttr(self):
+        callbacks = GenericMock()
+
+        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: lelel\r\n\r\n<xml a=\"lol\">whatever</xml>\r\n").getBytes()
+
+        callbacks.helpers.updateParameter.raise = UnsupportedOperationException
+
+        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_XML_ATTR, 63, 66)
+        sip.updateContentLength = lambda x: x
+
+        ret = sip.buildRequest(String("evil <awfafw ''\"").getBytes())
+        print str(String(ret))
+
+        self.assertTrue("<xml a=\"evil &lt;awfafw &apos;&apos;&quot;\">whatever</xml>" in str(String(ret)))
+
     def testBuildRequestJsonNumbers(self):
         callbacks = GenericMock()
 

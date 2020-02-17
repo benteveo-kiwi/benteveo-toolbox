@@ -196,6 +196,8 @@ class ScannerInsertionPoint(IScannerInsertionPoint):
             start, end, payload = self.encodeJson(start, end, payload)
         elif self.type == IScannerInsertionPoint.INS_HEADER:
             pass
+        elif self.type in [IScannerInsertionPoint.INS_PARAM_XML, IScannerInsertionPoint.INS_PARAM_XML_ATTR]:
+            start, end, payload = self.encodeXml(start, end, payload)
         else:
             start, end, payload = self.encodeUrl(start, end, payload)
 
@@ -244,6 +246,37 @@ class ScannerInsertionPoint(IScannerInsertionPoint):
             end += 1
 
         return start, end, payload
+
+    def encodeXml(self, start, end, payload):
+        """
+        Encodes the payload so that it will not break XML output.
+
+        Args:
+            start: the start position of the value
+            end: the end position of the value
+            payload: the payload that the extension wishes to insert.
+
+        Returns:
+            tuple: (start, end, payload) after modifications have been made to account for the particularities of XML encoding.
+        """
+        html_escape_table = {
+            "&": "&amp;",
+            '"': "&quot;",
+            "'": "&apos;",
+            ">": "&gt;",
+            "<": "&lt;",
+        }
+
+        payload = str(String(payload))
+
+        newPayload = ""
+        for c in payload:
+            try:
+                newPayload += html_escape_table[c]
+            except KeyError:
+                newPayload += c
+
+        return start, end, String(newPayload).getBytes()
 
     def encodeUrl(self, start, end, payload):
         """
