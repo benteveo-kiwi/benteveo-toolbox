@@ -771,7 +771,6 @@ class ToolboxCallbacks(NewThreadCaller):
 
                     break
 
-
         return nbExceptions
 
     def fuzzRequestModel(self, request):

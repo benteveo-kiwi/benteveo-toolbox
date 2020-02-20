@@ -139,6 +139,12 @@ class EndpointTableModel(AbstractTableModel):
         self.endpoints = OrderedDict()
         self.MAX_REQUESTS_PER_ENDPOINT = 100
 
+        try:
+            self.fuzzedMetadata = json.loads(self.callbacks.loadExtensionSetting('fuzzed-metadata'))
+        except:
+            log("Invalid fuzzedMetadata. Ignoring.")
+            self.fuzzedMetadata = {}
+
     def generateEndpointHash(self, analyzedRequest):
         """
         In this endpoint, a hash is a string that is used to group requests.
@@ -237,7 +243,10 @@ class EndpointTableModel(AbstractTableModel):
             if method == "OPTIONS":
                 return False
 
-            fuzzed = True if self.callbacks.loadExtensionSetting("fuzzed-" + hash) == "true" else False
+            try:
+                fuzzed = self.fuzzedMetadata[hash]
+            except KeyError:
+                fuzzed = False
 
             if hash not in self.endpoints:
                 self.endpoints[hash] = EndpointModel(method, url, fuzzed)
@@ -356,7 +365,11 @@ class EndpointTableModel(AbstractTableModel):
         with self.lock:
             endpointModel.fuzzed = fuzzed
             store = "true" if fuzzed else "false"
-            self.callbacks.saveExtensionSetting("fuzzed-"+self.generateEndpointHash(endpointModel.requests[0].analyzedRequest)[0], store)
+
+            hash = self.generateEndpointHash(endpointModel.requests[0].analyzedRequest)[0]
+            self.fuzzedMetadata[hash] = fuzzed
+            self.callbacks.saveExtensionSetting("fuzzed-metadata", json.dumps(self.fuzzedMetadata))
+
             self.fireTableDataChanged()
 
 class RequestTableModel(AbstractTableModel):
