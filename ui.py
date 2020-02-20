@@ -727,9 +727,9 @@ class ToolboxCallbacks(NewThreadCaller):
                 endpointsNotReproducibleCount += 1
                 log("Did not fuzz '%s' because no reproducible requests are possible with the current replacement rules" % endpoint.url)
 
-            nbExceptions += self.checkMaxConcurrentRequests(futures, self.maxConcurrentRequests)
+            nbExceptions += self.checkMaxConcurrentRequests(futures, self.maxConcurrentRequests - 1)
 
-        nbExceptions += self.checkMaxConcurrentRequests(futures, 1) # ensure all requests are `isDone()`
+        nbExceptions += self.checkMaxConcurrentRequests(futures, 0) # ensure all requests are done.
 
         return nbFuzzedTotal, nbExceptions
 
@@ -747,7 +747,7 @@ class ToolboxCallbacks(NewThreadCaller):
             int: number of exceptions thrown during scan. 0 means no errors.
         """
         nbExceptions = 0
-        while len(futures) >= maxRequests:
+        while len(futures) > maxRequests:
             self.sleep(1)
             for tuple in futures:
                 endpoint, request, future = tuple
@@ -770,6 +770,7 @@ class ToolboxCallbacks(NewThreadCaller):
                         log("Fuzzing complete but did not mark as fuzzed becauase no longer reproducible at %s." % endpoint.url)
 
                     break
+
 
         return nbExceptions
 

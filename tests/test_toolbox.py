@@ -515,7 +515,6 @@ class TestToolbox(BaseTestClass):
             em = GenericMock()
             em.fuzzed = False
 
-
             utility.nb_calls = 0
             def return_true_once(*args, **kwargs):
                 if utility.nb_calls == 0:
