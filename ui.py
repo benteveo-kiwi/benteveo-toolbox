@@ -741,14 +741,14 @@ class ToolboxCallbacks(NewThreadCaller):
 
         Args:
             futures: futures as defined in `fuzzButtonClicked`
-            maxRequests: maximum requests that should be pending at this time.
+            maxRequests: maximum requests that should be pending at this time. If we have more futures than this number, this function will block until the situation changes. We check for changes by calling `isDone()` on each of the available futures.
 
         Return:
             int: number of exceptions thrown during scan. 0 means no errors.
         """
         nbExceptions = 0
         while len(futures) > maxRequests:
-            self.sleep(1)
+            self.sleep(0.5)
             for tuple in futures:
                 endpoint, request, future = tuple
                 if future.isDone():
