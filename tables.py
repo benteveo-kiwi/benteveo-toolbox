@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from java.awt import Color
+from java.awt.event import MouseAdapter
 from java.lang import Boolean
 from java.lang import Class
 from java.lang import Integer
@@ -10,11 +11,14 @@ from javax.swing.table import AbstractTableModel
 from javax.swing.table import DefaultTableCellRenderer
 from models import EndpointModel, RequestModel, ReplacementRuleModel
 from threading import Lock
-from java.awt.event import MouseAdapter
+from utility import log
 import json
 import logging
 import sys
 import utility
+
+class NoResponseException(Exception):
+    pass
 
 class Table(JTable):
     """
@@ -48,8 +52,17 @@ class Table(JTable):
 
 
 class TableMouseAdapter(MouseAdapter):
+    """
+    Adapter for handling mouse clicks to our EndpointsTableModel.
+    """
 
     def mouseClicked(self, event):
+        """
+        Deals with user clicks.
+
+        Args:
+            event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
+        """
         table = event.getSource()
         endpointTableModel = table.getModel()
 
@@ -62,11 +75,28 @@ class TableMouseAdapter(MouseAdapter):
             endpointTableModel.setFuzzed(endpoint, newValue)
 
 class CellHighlighterRenderer(DefaultTableCellRenderer):
+    """
+    A renderer for highlighting rows that appear to have IDOR based on a certain set of heuristics, such as whether modified requests have the same length as the original request.
+    """
 
     def __init__(self, state):
+        """
+        Main constructor.
+        """
         self.state = state
 
     def getTableCellRendererComponent(self, table, value, isSelected, hasFocus, rowIndex, columnIndex):
+        """
+        Gets the JComponent for each cell.
+
+        Args:
+            table: the table this rendering process corresponds to.
+            value: the value of the cell
+            isSelected: true if the cell is to be rendered with the selection highlighted; otherwise false
+            hasFocus: if true, render cell appropriately. For example, put a special border on the cell, if the cell can be edited, render in the color used to indicate editing
+            rowIndex: the rowIndex for this cell
+            columnIndex: the columnIndex for this cell.
+        """
         comp = DefaultTableCellRenderer.getTableCellRendererComponent(self, table, value, isSelected, hasFocus, rowIndex, columnIndex)
 
         modelRow = table.convertRowIndexToModel(rowIndex)
@@ -107,7 +137,13 @@ class EndpointTableModel(AbstractTableModel):
         self.state = state
         self.callbacks = callbacks
         self.endpoints = OrderedDict()
-        self.maxRequests = 100
+        self.MAX_REQUESTS_PER_ENDPOINT = 100
+
+        try:
+            self.fuzzedMetadata = json.loads(self.callbacks.loadExtensionSetting('fuzzed-metadata'))
+        except:
+            log("Invalid fuzzedMetadata. Ignoring.")
+            self.fuzzedMetadata = {}
 
     def generateEndpointHash(self, analyzedRequest):
         """
@@ -180,7 +216,7 @@ class EndpointTableModel(AbstractTableModel):
         Args:
             rowIndex: specific row to fetch the EndpointModel for.
         """
-        return self.endpoints.items()[rowIndex][1]
+        return self.endpoints.values()[rowIndex]
 
     def add(self, httpRequestResponse):
         """
@@ -207,20 +243,23 @@ class EndpointTableModel(AbstractTableModel):
             if method == "OPTIONS":
                 return False
 
-            fuzzed = True if self.callbacks.loadExtensionSetting("fuzzed-" + hash) == "true" else False
+            try:
+                fuzzed = self.fuzzedMetadata[hash]
+            except KeyError:
+                fuzzed = False
 
             if hash not in self.endpoints:
                 self.endpoints[hash] = EndpointModel(method, url, fuzzed)
 
-            if self.endpoints[hash].nb < self.maxRequests:
+            if self.endpoints[hash].nb < self.MAX_REQUESTS_PER_ENDPOINT:
                 self.endpoints[hash].add(RequestModel(httpRequestResponse, self.callbacks))
-
-                added_at_index = len(self.endpoints)
-                self.fireTableRowsInserted(added_at_index - 1, added_at_index - 1)
-
-                return True
+                added = True
             else:
-                return False
+                added = False
+
+            self.fireTableDataChanged() # this is used insted of fireTableDataChanged because of a crash when the table is sorted. If performance is too much of an issue, we can remove this out of here and make it the responsibility of the caller.
+
+            return added
 
     def clear(self):
         """
@@ -235,7 +274,8 @@ class EndpointTableModel(AbstractTableModel):
                 return
 
             self.endpoints = OrderedDict()
-            self.fireTableRowsDeleted(0, length - 1)
+            self.fireTableDataChanged()
+
 
     def selectRow(self, rowIndex):
         """
@@ -289,8 +329,9 @@ class EndpointTableModel(AbstractTableModel):
         with self.lock:
 
             if not httpRequestResponse.response:
-                log("No response received on update call()")
-                return
+                msg = "No response received on update call() for %s. Is the server now offline?" % (requestModel.analyzedRequest.url)
+                log(msg)
+                raise NoResponseException(msg)
 
             requestModel.repeatedHttpRequestResponse = httpRequestResponse
             requestModel.repeatedAnalyzedResponse = self.callbacks.helpers.analyzeResponse(httpRequestResponse.response)
@@ -302,6 +343,9 @@ class EndpointTableModel(AbstractTableModel):
     def getColumnClass(self, columnIndex):
         """
         Get column class. Gets called by swing to determine sorting.
+
+        Args:
+            columnIndex: the columnIndex to determine the class for.
         """
         if columnIndex in [2, 3, 4]:
             return Integer(0).class
@@ -312,16 +356,20 @@ class EndpointTableModel(AbstractTableModel):
 
     def setFuzzed(self, endpointModel, fuzzed):
         """
-        Thread safe way to mark EndpointModel as fuzzed.
+        Thread safe way to mark EndpointModel as fuzzed. This is done here as opposed to in the model to make easy use of the `self.lock` variable.
 
         Args:
-            endpointModel: the EndpointModel object,
+            endpointModel: the EndpointModel object.
             fuzzed: new fuzzed value.
         """
         with self.lock:
             endpointModel.fuzzed = fuzzed
             store = "true" if fuzzed else "false"
-            self.callbacks.saveExtensionSetting("fuzzed-"+self.generateEndpointHash(endpointModel.requests[0].analyzedRequest)[0], store)
+
+            hash = self.generateEndpointHash(endpointModel.requests[0].analyzedRequest)[0]
+            self.fuzzedMetadata[hash] = fuzzed
+            self.callbacks.saveExtensionSetting("fuzzed-metadata", json.dumps(self.fuzzedMetadata))
+
             self.fireTableDataChanged()
 
 class RequestTableModel(AbstractTableModel):
@@ -578,7 +626,8 @@ class ReplacementRuleTableModel(AbstractTableModel):
         jsonObject = json.loads(jsonRules)
         rules = []
         for element in jsonObject:
-            rules.append(ReplacementRuleModel(element['id'], element['type'], element['search'], element['replacement']))
+            self.id_counter += 1
+            rules.append(ReplacementRuleModel(self.id_counter, element['type'], element['search'], element['replacement']))
 
         with self.lock:
             self.rules = rules

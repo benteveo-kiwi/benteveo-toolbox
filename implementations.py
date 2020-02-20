@@ -1,3 +1,4 @@
+from burp import IContextMenuInvocation
 from burp import IExtensionStateListener
 from burp import IHttpListener
 from burp import IHttpService
@@ -7,12 +8,8 @@ from burp import ITab
 from java.io import ByteArrayOutputStream
 from java.lang import IllegalArgumentException, UnsupportedOperationException, String
 from utility import log
-import utility
 import json
-
-utility.importJavaDependency("lib/backslash-powered-scanner-fork.jar")
-
-from burp import Utilities
+import utility
 
 class Tab(ITab):
     def __init__(self, splitpane):
@@ -136,7 +133,11 @@ class ExtensionStateListener(IExtensionStateListener):
         self.state.executorService.shutdown()
         self.state.perRequestExecutorService.shutdown()
         self.state.shutdown = True
-        Utilities.unloaded.set(True)
+
+        for extensionName, extension in self.state.toolboxCallbacks.extensions:
+            for extensionStateListener in extension.getExtensionStateListeners():
+                extensionStateListener.extensionUnloaded()
+
         log("Successfully shut down.")
 
 class ScannerInsertionPoint(IScannerInsertionPoint):
@@ -195,6 +196,8 @@ class ScannerInsertionPoint(IScannerInsertionPoint):
             start, end, payload = self.encodeJson(start, end, payload)
         elif self.type == IScannerInsertionPoint.INS_HEADER:
             pass
+        elif self.type in [IScannerInsertionPoint.INS_PARAM_XML, IScannerInsertionPoint.INS_PARAM_XML_ATTR]:
+            start, end, payload = self.encodeXml(start, end, payload)
         else:
             start, end, payload = self.encodeUrl(start, end, payload)
 
@@ -244,6 +247,37 @@ class ScannerInsertionPoint(IScannerInsertionPoint):
 
         return start, end, payload
 
+    def encodeXml(self, start, end, payload):
+        """
+        Encodes the payload so that it will not break XML output.
+
+        Args:
+            start: the start position of the value
+            end: the end position of the value
+            payload: the payload that the extension wishes to insert.
+
+        Returns:
+            tuple: (start, end, payload) after modifications have been made to account for the particularities of XML encoding.
+        """
+        html_escape_table = {
+            "&": "&amp;",
+            '"': "&quot;",
+            "'": "&apos;",
+            ">": "&gt;",
+            "<": "&lt;",
+        }
+
+        payload = str(String(payload))
+
+        newPayload = ""
+        for c in payload:
+            try:
+                newPayload += html_escape_table[c]
+            except KeyError:
+                newPayload += c
+
+        return start, end, String(newPayload).getBytes()
+
     def encodeUrl(self, start, end, payload):
         """
         Encodes payload so that it will not break the JSON payload.
@@ -263,3 +297,23 @@ class ScannerInsertionPoint(IScannerInsertionPoint):
 
     def getInsertionPointType(self):
         return self.type
+
+class ContextMenuInvocation(IContextMenuInvocation):
+    """
+    Our custom implementation of IContextMenuInvocation. It is used for interacting with burp extensions through fake clicks.
+    """
+
+    def __init__(self, httpRequestResponses):
+        """
+        Main constructor method.
+
+        Args:
+            httpRequestResponses: a list of httpRequestResponse objects that will be returned when `getSelectedMessages` is invoked on this object.
+        """
+        self.httpRequestResponses = httpRequestResponses
+
+    def getSelectedMessages(self):
+        """
+        Return stored httpRequestResponses.
+        """
+        return self.httpRequestResponses

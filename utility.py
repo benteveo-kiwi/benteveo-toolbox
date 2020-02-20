@@ -1,9 +1,16 @@
+from burp import IBurpExtenderCallbacks, IExtensionHelpers
 from java.util import ArrayList
 from java.util import Arrays
+import importlib
 import json
+import logging
 import re
+import string
 import sys
 import urllib2
+
+# Logger for writing to stdout.
+STDOUT_LOGGER = None
 
 # Constants for the add replacement form.
 REPLACE_HEADER_NAME = "Replace by header name"
@@ -117,6 +124,24 @@ def get_header(callbacks, request, header_name):
 
     raise NoSuchHeaderException("Header not found.")
 
+def setupLogging(logLevel=None):
+
+    if not logLevel:
+        logLevel = logging.DEBUG
+
+    format = '[%(levelname)s %(asctime)s]: %(message)s'
+    logging.basicConfig(format=format, level=logLevel, stream=sys.stderr)
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logLevel)
+    formatter = logging.Formatter(format)
+    handler.setFormatter(formatter)
+
+    global STDOUT_LOGGER
+    STDOUT_LOGGER = logging.getLogger("stdoutLogger")
+    STDOUT_LOGGER.propagate = False
+    STDOUT_LOGGER.addHandler(handler)
+
 def log(message):
     """
     Writes a log to Burp's stdout logging.
@@ -126,11 +151,7 @@ def log(message):
     Args:
         Message to print.
     """
-    print message +"\n",
-
-def importJavaDependency(source):
-    if source not in sys.path:
-        sys.path.append(source)
+    STDOUT_LOGGER.info(message)
 
 def sendMessageToSlack(message):
     """
@@ -145,3 +166,135 @@ def sendMessageToSlack(message):
     params = {'text': message}
     req = urllib2.Request(url, headers = {"Content-Type": "application/json"}, data = json.dumps(params))
     urllib2.urlopen(req)
+
+class BurpCallWrapper(IBurpExtenderCallbacks, IExtensionHelpers):
+    """
+    Our own custom implementation of the burp extender callbacks and helper functions.
+
+    It is used for communication with the imported modules. It mainly records calls and then forwards them to the real IBurpExtenderCallbacks/IExtensionHelpers implementation.
+    """
+
+    helpersObject = None
+    wrappedObject = None
+    calls = None
+
+    def __init__(self, wrappedObject):
+        """
+        Main constructor.
+
+        Args:
+            wrappedObject: the real burp callbacks/helper object to wrap, i.e. callbacks or helpers.
+        """
+        self.wrappedObject = wrappedObject
+        self.calls = {}
+        self.helpersObject = None
+
+    def setExtensionName(self, name):
+        """
+        Prevent this call from reaching burp callbacks as this causes issues.
+        """
+        pass
+
+    def __getattribute__(self, name):
+        """
+        Called when somebody attempts to access an attribute of this class, such as a function.
+
+        The purpose of this function is to record the call arguments for later access.
+
+        Args:
+            name: the name of the attribute.
+        """
+        # If method is implemented here and not in the interface, return directly.
+        if name in object.__getattribute__(self, "__class__").__dict__:
+            return object.__getattribute__(self, name)
+
+        wrappedObject = self.wrappedObject
+        calls = self.calls
+
+        attr = getattr(wrappedObject, name)
+        isFunction = hasattr(attr, '__call__')
+
+        if isFunction:
+            def wrap(*args, **kwargs):
+                if not name in calls:
+                    calls[name] = []
+
+                calls[name].append((args, kwargs))
+                ret = attr(*args, **kwargs)
+                return ret
+
+            return wrap
+        else:
+            return attr
+
+class BurpExtension(object):
+    """
+    Stores information regarding a loaded burp extension
+    """
+
+    def __init__(self, callWrapper):
+        """
+        Main constructor.
+
+        Args:
+            callWrapper: a BurpCallWrapper object as passed to burpExtender.registerExtenderCallbacks
+        """
+        self.calls = callWrapper.calls
+
+    def getSimpleCalls(self, func):
+        calls = []
+        try:
+            for call in self.calls[func]:
+                args, kwargs = call
+                calls.append(args[0])
+        except KeyError:
+            pass
+
+        return calls
+
+    def getScannerChecks(self):
+        return self.getSimpleCalls('registerScannerCheck')
+
+    def getExtensionStateListeners(self):
+        return self.getSimpleCalls('registerExtensionStateListener')
+
+    def getContextMenuFactories(self):
+        return self.getSimpleCalls('registerContextMenuFactory')
+
+def getClass(className):
+    """
+    Given a class name, it gets a reference to it that can later be instantiated.
+
+    It does not make use of `importlib.import_module` because Java modules cannot be imported in this way. See https://stackoverflow.com/a/44040971 for more information
+
+    Args:
+        className: the class name to get a reference to. You should not pass untrusted input to this function because it is exec'ed.
+    """
+
+    for c in className:
+        if c != '.' and c not in string.ascii_letters:
+            raise Exception()
+
+    exec "import %s as tmpClass" % className
+    return tmpClass
+
+def importBurpExtension(jarFile, burpExtenderClass, callbacks):
+    """
+    Imports a burp module given the location of the JAR file and it's main class.
+
+    It does this by adding the jar to the sys.path, importing the class and calling it with a wrapper that records interactions to the callbacks objects.
+
+    Args:
+        jarFile: the location in disk where the extension's JAR file is located.
+        burpExtenderClass: the name of the burpExtender implementation.
+        callbacks: the burp callbacks object.
+    """
+    sys.path.append(jarFile)
+
+    burpExtenderImpl = getClass(burpExtenderClass)
+    burpExtender = burpExtenderImpl()
+
+    callbacksWrapper = BurpCallWrapper(callbacks)
+    burpExtender.registerExtenderCallbacks(callbacksWrapper)
+
+    return BurpExtension(callbacksWrapper)

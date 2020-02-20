@@ -1,259 +1,26 @@
 from benteveo_toolbox import BurpExtender
 from burp import IBurpExtenderCallbacks, IExtensionHelpers, IScannerInsertionPoint
-from collections import OrderedDict
 from implementations import ScannerInsertionPoint
-from java.awt import Component
-from java.lang import String, IllegalArgumentException, UnsupportedOperationException, Class
+from java.lang import String, IllegalArgumentException, UnsupportedOperationException
 from java.net import URL
 from java.util import ArrayList
 from models import EndpointModel, RequestModel, ReplacementRuleModel
 from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableModel
 from ui import ToolboxCallbacks, STATUS_OK, STATUS_FAILED
-import contextlib
+from tests import GenericMock, TestException, raise_exception, BaseTestClass
 import math
 import operator
 import ui
 import unittest
 import utility
+import benteveo_toolbox
 
 utility.INSIDE_UNIT_TEST = True
 
-class GenericMock(object):
+class TestToolbox(BaseTestClass):
     """
-    A generic mocking class that accepts calls to any method without crashing.
-
-    Because we're using jython, installing commonly used mocking frameworks takes more than one command and could make creating a testing environment more complicated.
+    Main testing class. Contains tests for sections of the code that don't pertain to more specific test files.
     """
-
-    call_count = 0
-
-    def __init__(self):
-        self.mocked = {}
-
-    def __getattr__(self, name):
-        """
-        Gets called when an attribute is retrieved.
-
-        It attempts to retrieve the value from within the object if it exists, and if not returns another instance of GenericMock. If the same attribute is retrieved more than once, the same instance of GenericMock is retrieved.
-
-        Args:
-            name: the name of the attribute being retrieved.
-        """
-        try:
-            return object.__getattribute__(self, name)
-        except AttributeError:
-            pass
-
-        try:
-            return self.mocked[name]
-        except KeyError:
-            self.mocked[name] = GenericMock()
-            return self.mocked[name]
-
-    def __call__(self, *args):
-        """
-        This method is called when the object is invoked as a function.
-
-        It records the number of times it was called as well as the arguments it was called with the last time. It returns the `return_value` property so that users of this api can mock the return value of the function. If `raise` is an exception on this object, we raise that value.
-        """
-
-        if type(self.raise) == Exception or type(self.raise) == Class:
-            raise self.raise
-
-        self.call_count += 1
-        self.call_args = args
-        return self.return_value
-
-    def getComponent(self, *args):
-        """
-        This is a hard-coded method that is required because of java type issues. It is required in many tests so it's less repetitive to put it here.
-        """
-        class ComponentMock(Component):
-            pass
-
-        return ComponentMock()
-
-    def loadExtensionSetting(self, *args):
-        """
-        This is a hard-coded method that is required because of java type issues. It is required in many tests so it's less repetitive to put it here.
-        """
-        return "setting"
-
-    def __len__(self):
-        """
-        This function is called when len() is called on GenericMock(). For ease of testability it always returns 1337.
-        """
-        return 1337
-
-    def __iter__(self):
-        """
-        This function is called when a caller attempts to use generic mock as an iterator. It yields three GenericMock() objects.
-        """
-        yield GenericMock()
-        yield GenericMock()
-        yield GenericMock()
-
-    def __getitem__(self, item):
-        """
-        Makes object subscriptable, e.g. genericMockInstance['test']
-        """
-        return GenericMock()
-
-
-class TestException(Exception):
-    """
-    Custom exception for testing.
-    """
-    pass
-
-def raise_exception(*args, **kwargs):
-    """
-    Convenience function for raising an exception
-    """
-    raise TestException()
-
-class TestToolbox(unittest.TestCase):
-    """
-    Main testing class. Contains tests for all classes within the codebase.
-    """
-    @contextlib.contextmanager
-    def mockSwingClasses(_):
-        """
-        Mocks JOptionPane so that a pop-up window does not appear during test runs.  Note that it only gets mocked in the "ui.py" file.
-
-        The annotation makes it compatible with the `with` statement. See https://stackoverflow.com/a/3774934 for more info.
-        """
-        _JOptionPane = ui.JOptionPane
-        _JTextField = ui.JTextField
-        _Box = ui.Box
-
-        ui.JOptionPane = GenericMock()
-        ui.JOptionPane.showConfirmDialog.return_value = _JOptionPane.OK_OPTION
-        ui.JOptionPane.OK_OPTION = _JOptionPane.OK_OPTION
-
-        ui.JTextField = GenericMock()
-        ui.Box = GenericMock()
-        yield
-        ui.JOptionPane = _JOptionPane
-        ui.JTextField = _JTextField
-        ui.Box = _Box
-
-    @contextlib.contextmanager
-    def mockUtilityCalls(_):
-        """
-        Mocks calls to the utility module for ease of testability. Note that it only gets mocked in the "ui.py" file.
-        """
-        apply_rules = ui.apply_rules
-        get_header = ui.get_header
-        log = ui.log
-        sendMessageToSlack = ui.sendMessageToSlack
-
-        ui.apply_rules = GenericMock()
-        ui.get_header = GenericMock()
-        ui.log = GenericMock()
-        ui.sendMessageToSlack = GenericMock()
-
-        ui.apply_rules.return_value = (False, None)
-
-        yield
-
-        ui.apply_rules = apply_rules
-        ui.get_header = get_header
-        ui.log = log
-        ui.sendMessageToSlack = sendMessageToSlack
-
-    def _cem(self, method, url, dict=None):
-        """
-        Creates EndpointModel convenience function.
-
-        Returns a OrderedDict with the added endpoint module. Optionally, you may pass a dict that will be added to and then returned.
-
-        Args:
-            method: a method, e.g. "GET"
-            url: a url, e.g. "http://www.example.org/"
-            dict: a dict. If set that dict will be inserted into instead of a new one created.
-        """
-
-        if not dict:
-            dict = OrderedDict()
-
-        httpRequestResponse = GenericMock()
-
-        callbacks = GenericMock()
-        callbacks.helpers.analyzeRequest.return_value.method = method
-        callbacks.helpers.analyzeRequest.return_value.url = URL(url)
-        callbacks.helpers.analyzeResponse.return_value.statusCode = 200
-
-        request = RequestModel(httpRequestResponse, callbacks)
-
-        hash = method + "|" + url.split("?")[0]
-
-        if not hash in dict:
-            dict[hash] = EndpointModel(method, url)
-        dict[hash].add(request)
-
-        return dict
-
-    def _cetm(self):
-        """
-        Create EndpointTableModel convenience function
-        """
-        state = GenericMock()
-        callbacks = GenericMock()
-        etm = EndpointTableModel(state, callbacks)
-
-        return etm, state, callbacks
-
-    def _cetm_populate(self):
-        """
-        Create EndpointTableModel convenience function. Also populates the endpoints.
-        """
-        etm, state, callbacks = self._cetm()
-
-        dict = self._cem("GET", "http://www.example.org/users")
-        dict = self._cem("GET", "http://www.example.org/users", dict)
-        etm.endpoints = dict
-
-        endpointModel = etm.endpoints["GET|http://www.example.org/users"]
-
-        return etm, state, callbacks, endpointModel
-
-    def _crtm(self):
-        """
-        Create RequestTableModel convenience function.
-        """
-        state = GenericMock()
-        callbacks = GenericMock()
-        rtm = RequestTableModel(state, callbacks)
-
-        return rtm, state, callbacks
-
-    def _ctc(self):
-        """
-        Create ToolBoxCallbacks convenience method.
-        """
-        state = GenericMock()
-        burpCallbacks = GenericMock()
-
-        state.sessionCheckTextarea.text = "GET / HTTP/1.1\r\nHost: example.org\r\n\r\n"
-        state.executorService = GenericMock()
-
-        request = ArrayList()
-        request.add("GET / HTTP/1.1")
-        request.add("Host: example.org")
-        burpCallbacks.helpers.analyzeRequest.return_value.headers = request
-
-        cb = ToolboxCallbacks(state, burpCallbacks)
-        cb.sleep = GenericMock()
-
-        return cb, state, burpCallbacks
-
-    def _crrtm(self):
-        """
-        Create ReplacementRuleTableModel convenience method.
-        """
-        return ReplacementRuleTableModel()
-
     def testCanRunMainWithoutCrashing(self):
         be = BurpExtender()
         mock = GenericMock()
@@ -328,7 +95,7 @@ class TestToolbox(unittest.TestCase):
         self.assertEqual(len(etm.endpoints), 1)
         self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].url, "http://www.example.org/users")
         self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].method, "GET")
-        self.assertEqual(len(etm.endpoints["GET|http://www.example.org/users"].requests), etm.maxRequests)
+        self.assertEqual(len(etm.endpoints["GET|http://www.example.org/users"].requests), etm.MAX_REQUESTS_PER_ENDPOINT)
 
     def testAddEndpointTableModelWithQueryString(self):
         etm, state, callbacks = self._cetm()
@@ -346,7 +113,7 @@ class TestToolbox(unittest.TestCase):
     def testClearEndpointTableModel(self):
         etm, state, callbacks = self._cetm()
 
-        etm.fireTableRowsDeleted = GenericMock()
+        etm.fireTableDataChanged = GenericMock()
 
         ret = callbacks.helpers.analyzeRequest.return_value
         ret.method = "GET"
@@ -356,16 +123,16 @@ class TestToolbox(unittest.TestCase):
         etm.clear()
 
         self.assertEqual(len(etm.endpoints), 0)
-        self.assertEqual(etm.fireTableRowsDeleted.call_count, 1)
+        self.assertEqual(etm.fireTableDataChanged.call_count, 2) # one for add, one for clear.
 
     def testClearWhenEmpty(self):
         etm, state, callbacks = self._cetm()
 
-        etm.fireTableRowsDeleted = GenericMock()
+        etm.fireTableDataChanged = GenericMock()
 
         etm.clear()
 
-        self.assertEqual(etm.fireTableRowsDeleted.call_count, 0)
+        self.assertEqual(etm.fireTableDataChanged.call_count, 0)
 
     def testEndpointTableModelGetValueAt(self):
         etm, state, callbacks = self._cetm()
@@ -748,7 +515,6 @@ class TestToolbox(unittest.TestCase):
             em = GenericMock()
             em.fuzzed = False
 
-
             utility.nb_calls = 0
             def return_true_once(*args, **kwargs):
                 if utility.nb_calls == 0:
@@ -797,21 +563,24 @@ class TestToolbox(unittest.TestCase):
 
     def testFuzzRequestModel(self):
         cb, state, burpCallbacks = self._ctc()
-        ui.FastScan = GenericMock()
+
+        extension = GenericMock()
+        scanner = GenericMock()
+        extension.getScannerChecks.return_value = [scanner]
+        cb.extensions = [("scanner_name", extension)]
         cb.fuzzRequestModel(GenericMock())
 
-        self.assertEquals(ui.FastScan.call_count, 1)
         self.assertEquals(state.executorService.submit.call_count, 5)
 
         state.executorService.submit.return_value.isDone = raise_exception
 
-        classIsDone = False
+        callsIsDone = False
         try:
             cb.fuzzRequestModel(GenericMock())
         except TestException:
-            classIsDone = True
+            callsIsDone = True
 
-        self.assertTrue(classIsDone, "Calls is done.")
+        self.assertTrue(callsIsDone, "Calls is done.")
 
     def testPersistsMetadata(self):
         etm, state, callbacks = self._cetm()
@@ -827,7 +596,7 @@ class TestToolbox(unittest.TestCase):
         state = GenericMock()
         callbacks = GenericMock()
         callbacks.loadExtensionSetting = GenericMock()
-        callbacks.loadExtensionSetting.return_value = "true"
+        callbacks.loadExtensionSetting.return_value = '{"GET|http://www.example.org/users": true}'
         etm = EndpointTableModel(state, callbacks)
 
         ret = callbacks.helpers.analyzeRequest.return_value
@@ -916,8 +685,23 @@ class TestToolbox(unittest.TestCase):
         request.repeatedAnalyzedRequest.parameters = [parameter, parameter, parameter]
         request.repeatedAnalyzedRequest.headers = [parameter, parameter, parameter] # gonna skip the first line in the header
 
-        insertionPoints = cb.getInsertionPoints(request)
+        insertionPoints = cb.getInsertionPoints(request, False)
         self.assertEquals(len(insertionPoints), 5)
+
+    def testGetInsertionPointsOnlyParameters(self):
+        cb, state, burpCallbacks = self._ctc()
+
+        request = GenericMock()
+        parameter = GenericMock()
+        parameter.name = "lol"
+        parameter.value = "lol"
+        parameter.type = 1
+        request.repeatedAnalyzedRequest.parameters = [parameter, parameter, parameter]
+        request.repeatedAnalyzedRequest.headers = [parameter, parameter, parameter] # gonna skip the first line in the header
+
+        onlyParameters = True
+        insertionPoints = cb.getInsertionPoints(request, onlyParameters)
+        self.assertEquals(len(insertionPoints), 3)
 
     def testGetInsertionPointsPath(self):
         cb, state, burpCallbacks = self._ctc()
@@ -968,7 +752,7 @@ class TestToolbox(unittest.TestCase):
         request.repeatedAnalyzedRequest.headers = headers
         request.repeatedHttpRequestResponse.request = String(firstLine + "\r\n" + secondLine + "\r\n").getBytes()
 
-        insertionPoints = cb.getInsertionPoints(request)
+        insertionPoints = cb.getInsertionPoints(request, False)
 
         insertionPoints[0].updateContentLength = lambda x: x
         insertionPoints[1].updateContentLength = lambda x: x
@@ -1000,6 +784,34 @@ class TestToolbox(unittest.TestCase):
 
         ret = sip.buildRequest(String("herecomethe\"quotes").getBytes())
         self.assertTrue('{"param":"herecomethe\\"quotes"}' in str(String(ret)))
+
+    def testBuildRequestXml(self):
+        callbacks = GenericMock()
+
+        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: lelel\r\n\r\n<xml>lol</xml>\r\n").getBytes()
+
+        callbacks.helpers.updateParameter.raise = UnsupportedOperationException
+
+        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_XML, 60, 63)
+        sip.updateContentLength = lambda x: x
+
+        ret = sip.buildRequest(String("evil <awfafw ''\"").getBytes())
+
+        self.assertTrue("<xml>evil &lt;awfafw &apos;&apos;&quot;</xml>" in str(String(ret)))
+
+    def testBuildRequestXmlAttr(self):
+        callbacks = GenericMock()
+
+        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: lelel\r\n\r\n<xml a=\"lol\">whatever</xml>\r\n").getBytes()
+
+        callbacks.helpers.updateParameter.raise = UnsupportedOperationException
+
+        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_XML_ATTR, 63, 66)
+        sip.updateContentLength = lambda x: x
+
+        ret = sip.buildRequest(String("evil <awfafw ''\"").getBytes())
+
+        self.assertTrue("<xml a=\"evil &lt;awfafw &apos;&apos;&quot;\">whatever</xml>" in str(String(ret)))
 
     def testBuildRequestJsonNumbers(self):
         callbacks = GenericMock()
@@ -1058,7 +870,7 @@ class TestToolbox(unittest.TestCase):
         request.repeatedAnalyzedRequest.parameters = []
         request.repeatedAnalyzedRequest.headers = headers
 
-        insertionPoints = cb.getInsertionPoints(request)
+        insertionPoints = cb.getInsertionPoints(request, False)
         self.assertEquals(len(insertionPoints), 2)
         self.assertEquals(insertionPoints[0].type, IScannerInsertionPoint.INS_HEADER)
         self.assertEquals(insertionPoints[0].baseValue, "example.org")

@@ -1,5 +1,5 @@
-from burp import IScannerInsertionPoint
-from implementations import MessageEditorController, HttpService, ScannerInsertionPoint
+from burp import IScannerInsertionPoint, IParameter
+from implementations import MessageEditorController, HttpService, ScannerInsertionPoint, ContextMenuInvocation
 from java.awt import BorderLayout
 from java.awt import Color
 from java.awt import Component
@@ -27,9 +27,9 @@ from javax.swing import JTable
 from javax.swing import JTextArea
 from javax.swing import JTextField
 from javax.swing import SwingUtilities
-from tables import Table, CellHighlighterRenderer, TableMouseAdapter
+from tables import Table, CellHighlighterRenderer, TableMouseAdapter, NoResponseException
 from threading import Lock
-from utility import apply_rules, get_header, log, sendMessageToSlack
+from utility import apply_rules, get_header, log, sendMessageToSlack, importBurpExtension
 from utility import REPLACE_HEADER_NAME, NoSuchHeaderException
 import jarray
 import java.lang.Exception
@@ -39,11 +39,6 @@ import sys
 import time
 import traceback
 import utility
-
-# This is required because burp's scanning API does not support calling other extensions directly and active scan fails in strange ways. This is unsupported but may give us more flexibility. For more information see ToolboxCallbacks.fuzzRequestModel.
-utility.importJavaDependency("lib/backslash-powered-scanner-fork.jar")
-
-from burp import FastScan, Utilities
 
 STATUS_OK = 0
 STATUS_FAILED = 1
@@ -72,6 +67,7 @@ class ToolboxUI():
         """
 
         self.callbacks = ToolboxCallbacks(state, callbacks)
+        state.toolboxCallbacks = self.callbacks
 
         tabs = JTabbedPane()
         resultsPane = self.buildResultsPane(state, callbacks)
@@ -127,11 +123,16 @@ class ToolboxUI():
 
         textarea = self.getTextArea()
         state.scopeTextArea = textarea.viewport.view
-        state.scopeTextArea.setText(callbacks.loadExtensionSetting("scopes"))
+
+        scopeText = callbacks.loadExtensionSetting("scopes")
+        state.scopeTextArea.setText(scopeText)
 
         scope.add(title)
         scope.add(refresh)
         scope.add(textarea)
+
+        if scopeText:
+            refresh.doClick() # refresh automatically to save users one click.
 
         return scope
 
@@ -165,7 +166,10 @@ class ToolboxUI():
 
         try:
             storedReplacementRules = callbacks.loadExtensionSetting("replacementRules")
-            state.replacementRuleTableModel.importJsonRules(storedReplacementRules)
+            if storedReplacementRules:
+                state.replacementRuleTableModel.importJsonRules(storedReplacementRules)
+            else:
+                log("No replacement rules stored.")
         except (ValueError, KeyError):
             log("Invalid replacement rules stored. Ignoring.")
             pass
@@ -327,7 +331,8 @@ class PythonFunctionRunnable(Runnable):
             log("Thread shutting down")
             raise
         except:
-            logging.exception("Exception in thread")
+            logging.error("Exception in thread", exc_info=True)
+            raise
 
 class NewThreadCaller(object):
     """
@@ -372,9 +377,11 @@ class ToolboxCallbacks(NewThreadCaller):
             state: the state object.
             burpCallbacks: the burp callbacks object.
         """
+
         self.state = state
         self.burpCallbacks = burpCallbacks
         self.lock = Lock()
+        self.extensions = []
 
         self.maxConcurrentRequests = 8
 
@@ -383,8 +390,15 @@ class ToolboxCallbacks(NewThreadCaller):
             self.state.executorService = Executors.newFixedThreadPool(16)
             self.state.perRequestExecutorService = Executors.newFixedThreadPool(self.maxConcurrentRequests)
 
-            log("Backslash Powered Scanner preferences:")
-            Utilities(self.burpCallbacks) # backslash powered scanner global state
+            # Beware: if the second argument to two of these importBurpExtension calls is the same, the same extension will be loaded twice. The solution is to recompile the JARs so that the classes do not have the same name.
+            log("[+] Loading Backslash Powered Scanner")
+            self.extensions.append(("bps", utility.importBurpExtension("lib/backslash-powered-scanner-fork.jar", 'burp.BackslashBurpExtender', burpCallbacks)))
+
+            log("[+] Loading SHELLING")
+            self.extensions.append(("shelling", utility.importBurpExtension("lib/shelling.jar", 'burp.BurpExtender', burpCallbacks)))
+
+            log("[+] Loading ParamMiner")
+            self.extensions.append(("paramminer", utility.importBurpExtension("lib/param-miner-fork.jar", 'paramminer.BurpExtender', burpCallbacks)))
 
     def refreshButtonClicked(self, event):
         """
@@ -494,6 +508,9 @@ class ToolboxCallbacks(NewThreadCaller):
         """
         rule = self.state.replacementRuleTableModel.selected
 
+        if not rule:
+            return
+
         try:
             type, search, replacement = self.buildAddEditPrompt(rule.type, rule.search, rule.replacement)
         except InvalidInputException:
@@ -602,9 +619,7 @@ class ToolboxCallbacks(NewThreadCaller):
 
     def resendRequestModel(self, request):
         """
-        Resends a request model and performs basic analysis on whether it responds with the same state and status code.
-
-        This method gets called from each thread. Operations on the global state need to be thread-safe.
+        Resends a request model and update the RequestModel object with the new response.
 
         Args:
             request: the RequestModel to resend.
@@ -625,12 +640,9 @@ class ToolboxCallbacks(NewThreadCaller):
         newResponse = self.burpCallbacks.makeHttpRequest(target, modifiedRequest)
         self.state.endpointTableModel.update(request, newResponse)
 
-
     def fuzzButtonClicked(self, event):
         """
         Handles clicks to the FUZZ button.
-
-        We attempt to fuzz only one request per endpoint, using our own criteria to differentiate between endpoints as defined in `EndpontTableModel.generateEndpointHash`. For each endpoint, we iterate through requests until we can find a single request whose status code is the same between both the original and the repeated request, we only fuzz once. Note this tool will only succeed if the user has clicked the check button.
 
         Args:
             event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
@@ -639,30 +651,71 @@ class ToolboxCallbacks(NewThreadCaller):
             self.messageDialog("Confirm status check button says OK.")
             return
 
-        endpoints = self.state.endpointTableModel.endpoints
-
         fuzzButton = event.source
         fuzzButton.setText("Fuzzing...")
 
+        try:
+            nbFuzzedTotal, nbExceptions = self.fuzzEndpoints()
+        except ShutdownException:
+                log("Scan shutdown.")
+                return
+        except:
+            if utility.INSIDE_UNIT_TEST:
+                raise
+
+            msg = "Scan failed due to an unknown exception."
+            sendMessageToSlack(msg)
+            logging.error(msg, exc_info=True)
+            fuzzButton.setText("Fuzz fail.")
+            return
+
+        fuzzButton.setText("FUZZ")
+
+        if nbFuzzedTotal > 0 and nbExceptions == 0:
+            sendMessageToSlack("Scan finished normally with no exceptions.")
+        elif nbFuzzedTotal > 0:
+            sendMessageToSlack("Scan finished with %s exceptions." % nbExceptions)
+
+    def fuzzEndpoints(self):
+        """
+        Fuzzes endpoints as present in the state based on the user preferences.
+
+        We attempt to fuzz only one request per endpoint, using our own criteria to differentiate between endpoints as defined in `EndpontTableModel.generateEndpointHash`. For each endpoint, we iterate through requests until we can find a single request whose status code is the same between both the original and the repeated request, we only fuzz once. Requests are ordered based on the number of parameters they have, giving preference to those with the higher number of parameters in order to attempt to maximise attack surface.
+
+        Returns:
+            tuple: (int, int) number of items scanned and number of items for which the scan could not be completed due to an exception.
+        """
+
+        endpoints = self.state.endpointTableModel.endpoints
+
         futures = []
         endpointsNotReproducibleCount = 0
+        nbFuzzedTotal = 0
+        nbExceptions = 0
         for key in endpoints:
             endpoint = endpoints[key]
 
             if endpointsNotReproducibleCount >= 10:
-                log("10 endpoints in a row not endpointsNotReproducibleCount")
+                log("10 endpoints in a row not reproducible.")
                 sendMessageToSlack("10 endpoints in a row not reproducible, bailing from the current scan.")
                 break
 
             if endpoint.fuzzed:
                 continue
 
+            sortedRequests = sorted(endpoint.requests, key=lambda x: len(x.analyzedRequest.parameters), reverse=True)
+
             fuzzed = False
-            for request in endpoint.requests:
+            for request in sortedRequests:
                 self.sleep(0.2)
-                self.resendRequestModel(request)
+                try:
+                    self.resendRequestModel(request)
+                except NoResponseException:
+                    continue
+
                 if request.wasReproducible():
                     endpointsNotReproducibleCount = 0
+                    nbFuzzedTotal += 1
 
                     runnable = PythonFunctionRunnable(self.fuzzRequestModel, args=[request])
                     futures.append((endpoint, request, self.state.perRequestExecutorService.submit(runnable)))
@@ -674,12 +727,11 @@ class ToolboxCallbacks(NewThreadCaller):
                 endpointsNotReproducibleCount += 1
                 log("Did not fuzz '%s' because no reproducible requests are possible with the current replacement rules" % endpoint.url)
 
-            self.checkMaxConcurrentRequests(futures, self.maxConcurrentRequests)
+            nbExceptions += self.checkMaxConcurrentRequests(futures, self.maxConcurrentRequests - 1)
 
-        self.checkMaxConcurrentRequests(futures, 1) # ensure all requests are `isDone()`
-        fuzzButton.setText("FUZZ")
-        sendMessageToSlack("Scan finished normally.")
+        nbExceptions += self.checkMaxConcurrentRequests(futures, 0) # ensure all requests are done.
 
+        return nbFuzzedTotal, nbExceptions
 
     def checkMaxConcurrentRequests(self, futures, maxRequests):
         """
@@ -689,10 +741,14 @@ class ToolboxCallbacks(NewThreadCaller):
 
         Args:
             futures: futures as defined in `fuzzButtonClicked`
-            maxRequests: maximum requests that should be pending at this time.
+            maxRequests: maximum requests that should be pending at this time. If we have more futures than this number, this function will block until the situation changes. We check for changes by calling `isDone()` on each of the available futures.
+
+        Return:
+            int: number of exceptions thrown during scan. 0 means no errors.
         """
-        while len(futures) >= maxRequests:
-            self.sleep(1)
+        nbExceptions = 0
+        while len(futures) > maxRequests:
+            self.sleep(0.5)
             for tuple in futures:
                 endpoint, request, future = tuple
                 if future.isDone():
@@ -703,6 +759,7 @@ class ToolboxCallbacks(NewThreadCaller):
                     except ExecutionException:
                         log("Failed to fuzz %s" % endpoint.url)
                         logging.error("Failure fuzzing %s" % endpoint.url, exc_info=True)
+                        nbExceptions += 1
                         continue
 
                     self.resendRequestModel(request)
@@ -714,27 +771,40 @@ class ToolboxCallbacks(NewThreadCaller):
 
                     break
 
+        return nbExceptions
+
     def fuzzRequestModel(self, request):
         """
         Sends a RequestModel to be fuzzed by burp.
 
         Burp has a helper function for running active scans, however I am not using it for two reasons. Firstly, as of 2.x the mechanism for configuring scans got broken in a re-shuffle of burp code. Secondly, burp's session handling for large scans is not perfect, once the session expires the scan continues to fuzz requests with an expired session, and implementing my own session handling on top of IScannerCheck objects is not possible due to a bug in getStatus() where requests that have errored out still have a "scanning" status. If these issues are resolved we can get rid of this workaround.
 
-        We work around this by importing Backslash powered scanner's FastScan and calling it directly https://github.com/PortSwigger/backslash-powered-scanner/blob/c861d56a3b84e4720bb0c352a22999012a7b2bc3/src/burp/BurpExtender.java#L55. We maintain a fork of BPS benteveo-kiwi for making private classes public.
+        We work around this by importing extensions' JAR files and interacting with them using the same APIs that burp uses.
 
         Args:
             request: an instance of RequestModel.
         """
         self.sleep(0.2)
 
-        fastScan = FastScan(self.burpCallbacks)
+        for name, extension in self.extensions:
+            for activeScanner in extension.getScannerChecks():
+                if name == "shelling":
+                    onlyParameters = True
+                else:
+                    onlyParameters = False
 
-        insertionPoints = self.getInsertionPoints(request)
+                insertionPoints = self.getInsertionPoints(request, onlyParameters)
 
-        futures = []
-        for insertionPoint in insertionPoints:
-            runnable = PythonFunctionRunnable(self.doActiveScan, args=[fastScan, request.httpRequestResponse, insertionPoint])
-            futures.append(self.state.executorService.submit(runnable))
+                futures = []
+                for insertionPoint in insertionPoints:
+                    runnable = PythonFunctionRunnable(self.doActiveScan, args=[activeScanner, request.repeatedHttpRequestResponse, insertionPoint])
+                    futures.append(self.state.executorService.submit(runnable))
+
+            for factory in extension.getContextMenuFactories():
+                if name == "paramminer":
+                    menuItems = factory.createMenuItems(ContextMenuInvocation([request.repeatedHttpRequestResponse]))
+                    for menuItem in menuItems:
+                        menuItem.doClick() # trigger "Guess headers/parameters/JSON!" functionality.
 
         while len(futures) > 0:
             self.sleep(1)
@@ -744,7 +814,7 @@ class ToolboxCallbacks(NewThreadCaller):
                     future.get()
                     futures.remove(future)
 
-    def getInsertionPoints(self, request):
+    def getInsertionPoints(self, request, onlyParameters):
         """
         Gets IScannerInsertionPoint for indicating active scan parameters. See https://portswigger.net/burp/extender/api/burp/IScannerInsertionPoint.html
 
@@ -752,13 +822,21 @@ class ToolboxCallbacks(NewThreadCaller):
 
         Args:
             request: the request to generate insertion points for.
+            onlyParameters: whether to fuzz only get and body parameters. Doesn't fuzz cookies, path parameters nor headers. This saves time when running shelling which takes a long time due to a long payload list.
         """
         parameters = request.repeatedAnalyzedRequest.parameters
 
         insertionPoints = []
         for parameter in parameters:
+
+            if parameter.type == IParameter.PARAM_COOKIE and onlyParameters:
+                continue
+
             insertionPoint = ScannerInsertionPoint(self.burpCallbacks, request.repeatedHttpRequestResponse.request, parameter.name, parameter.value, parameter.type, parameter.valueStart, parameter.valueEnd)
             insertionPoints.append(insertionPoint)
+
+        if onlyParameters:
+            return insertionPoints
 
         for pathInsertionPoint in self.getPathInsertionPoints(request):
             insertionPoints.append(pathInsertionPoint)
@@ -856,31 +934,32 @@ class ToolboxCallbacks(NewThreadCaller):
         return insertionPoints
 
 
-    def doActiveScan(self, fastScan, httpRequestResponse, insertionPoint):
+    def doActiveScan(self, scanner, httpRequestResponse, insertionPoint):
         """
         Performs an active scan and stores issues found.
 
         Because the scanner fails sometimes with random errors when HTTP requests timeout and etcetera, we retry a couple of times. This allows us to scan faster because we can be more resilient to errors.
 
         Args:
-            fastScan: the BPS fastscan object.
-            httpRequestResponse: the value to pass to doActiveScan
+            scanner: a IScannerCheck object as returned by extension.getActiveScanners().
+            httpRequestResponse: the value to pass to doActiveScan. This should be the modified request, i.e. repeatedHttpRequestResponse.
             insertionPoint: the insertionPoint to scan.
         """
         retries = 5
         while retries > 0:
             self.sleep(1)
             try:
-                issues = fastScan.doActiveScan(httpRequestResponse, insertionPoint)
+                issues = scanner.doActiveScan(httpRequestResponse, insertionPoint)
                 break
             except java.lang.Exception:
                 retries -= 1
                 logging.error("Java exception while fuzzing individual param, retrying it. %d retries left." % retries, exc_info=True)
 
         with self.lock:
-            for issue in issues:
-                sendMessageToSlack("Found something interesting! apparently '%s'. Do you want to check it out?" % (issue.issueName))
-                self.burpCallbacks.addScanIssue(issue)
+            if issues:
+                for issue in issues:
+                    sendMessageToSlack("Found something interesting! apparently '%s'. Do you want to check it out?" % (issue.issueName))
+                    self.burpCallbacks.addScanIssue(issue)
 
     def sleep(self, sleepTime):
         """
