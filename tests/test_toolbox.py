@@ -95,7 +95,7 @@ class TestToolbox(BaseTestClass):
         self.assertEqual(len(etm.endpoints), 1)
         self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].url, "http://www.example.org/users")
         self.assertEqual(etm.endpoints["GET|http://www.example.org/users"].method, "GET")
-        self.assertEqual(len(etm.endpoints["GET|http://www.example.org/users"].requests), etm.maxRequests)
+        self.assertEqual(len(etm.endpoints["GET|http://www.example.org/users"].requests), etm.MAX_REQUESTS_PER_ENDPOINT)
 
     def testAddEndpointTableModelWithQueryString(self):
         etm, state, callbacks = self._cetm()
