@@ -113,7 +113,7 @@ class TestToolbox(BaseTestClass):
     def testClearEndpointTableModel(self):
         etm, state, callbacks = self._cetm()
 
-        etm.fireTableRowsDeleted = GenericMock()
+        etm.fireTableDataChanged = GenericMock()
 
         ret = callbacks.helpers.analyzeRequest.return_value
         ret.method = "GET"
@@ -123,16 +123,16 @@ class TestToolbox(BaseTestClass):
         etm.clear()
 
         self.assertEqual(len(etm.endpoints), 0)
-        self.assertEqual(etm.fireTableRowsDeleted.call_count, 1)
+        self.assertEqual(etm.fireTableDataChanged.call_count, 2) # one for add, one for clear.
 
     def testClearWhenEmpty(self):
         etm, state, callbacks = self._cetm()
 
-        etm.fireTableRowsDeleted = GenericMock()
+        etm.fireTableDataChanged = GenericMock()
 
         etm.clear()
 
-        self.assertEqual(etm.fireTableRowsDeleted.call_count, 0)
+        self.assertEqual(etm.fireTableDataChanged.call_count, 0)
 
     def testEndpointTableModelGetValueAt(self):
         etm, state, callbacks = self._cetm()
