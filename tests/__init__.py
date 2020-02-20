@@ -9,14 +9,24 @@ from ui import ToolboxCallbacks, STATUS_OK, STATUS_FAILED
 import contextlib
 import java.io.File
 import java.io.FileOutputStream
+import logging
 import tempfile
 import ui
 import unittest
+import utility
 
 class BaseTestClass(unittest.TestCase):
     """
     Generic test class that all tests inherit from.
     """
+
+    @classmethod
+    def setUpClass(_):
+        """
+        Main constructor method.
+        """
+        utility.setupLogging(logLevel=logging.ERROR)
+
     @contextlib.contextmanager
     def mockSwingClasses(_):
         """

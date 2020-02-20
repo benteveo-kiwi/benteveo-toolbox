@@ -596,7 +596,7 @@ class TestToolbox(BaseTestClass):
         state = GenericMock()
         callbacks = GenericMock()
         callbacks.loadExtensionSetting = GenericMock()
-        callbacks.loadExtensionSetting.return_value = "true"
+        callbacks.loadExtensionSetting.return_value = '{"GET|http://www.example.org/users": true}'
         etm = EndpointTableModel(state, callbacks)
 
         ret = callbacks.helpers.analyzeRequest.return_value

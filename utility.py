@@ -124,12 +124,16 @@ def get_header(callbacks, request, header_name):
 
     raise NoSuchHeaderException("Header not found.")
 
-def setupLogging():
+def setupLogging(logLevel=None):
+
+    if not logLevel:
+        logLevel = logging.DEBUG
+
     format = '[%(levelname)s %(asctime)s]: %(message)s'
-    logging.basicConfig(format=format, level=logging.DEBUG, stream=sys.stderr)
+    logging.basicConfig(format=format, level=logLevel, stream=sys.stderr)
 
     handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(logging.DEBUG)
+    handler.setLevel(logLevel)
     formatter = logging.Formatter(format)
     handler.setFormatter(formatter)
 
