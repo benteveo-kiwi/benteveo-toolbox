@@ -29,6 +29,8 @@ class BurpExtender(IBurpExtender):
 
         utility.setupLogging()
 
+        utility.log("Loaded Benteveo Toolbox v0.2.0")
+
         state = State()
 
         # Endpoint table models are in charge of storing and disiplaying information in tables.
