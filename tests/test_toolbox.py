@@ -888,5 +888,22 @@ class TestToolbox(BaseTestClass):
         ret = sip.buildRequest(String("lol").getBytes())
         self.assertTrue("Host: lol" in str(String(ret)))
 
+    def testIsStaticResource(self):
+        etm, state, callbacks = self._cetm()
+
+        self.assertTrue(etm.isStaticResource('http://example.org/lel.svg'))
+        self.assertTrue(etm.isStaticResource('http://example.org/lel.gif'))
+        self.assertTrue(etm.isStaticResource('http://example.org/lel.jar'))
+        self.assertTrue(etm.isStaticResource('http://example.org/lel.exe'))
+        self.assertTrue(etm.isStaticResource('http://example.org/lel.zip'))
+        self.assertTrue(etm.isStaticResource('http://example.org/lel.docx'))
+
+        self.assertFalse(etm.isStaticResource('http://example.org/lel.php'))
+        self.assertFalse(etm.isStaticResource('http://example.org/lel.jsp'))
+        self.assertFalse(etm.isStaticResource('http://example.org/lel'))
+        self.assertFalse(etm.isStaticResource('http://example.org/lel.unknown'))
+        self.assertFalse(etm.isStaticResource('http://example.org/lel.aspx'))
+
+
 if __name__ == '__main__':
     unittest.main()

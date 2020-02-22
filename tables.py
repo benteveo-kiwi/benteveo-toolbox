@@ -16,6 +16,7 @@ import json
 import logging
 import sys
 import utility
+from urlparse import urlparse
 
 class NoResponseException(Exception):
     pass
@@ -251,6 +252,9 @@ class EndpointTableModel(AbstractTableModel):
 
             hash, url, method = self.generateEndpointHash(analyzedRequest)
 
+            if self.isStaticResource(url):
+                return False
+
             if not httpRequestResponse.response:
                 return False
 
@@ -272,6 +276,24 @@ class EndpointTableModel(AbstractTableModel):
                 added = False
 
             return added
+
+    def isStaticResource(self, url):
+        """
+        Determines whether this URL belongs to a static resource by analysing the file extension.
+
+        Args:
+            url: the URL of the request, without a query string, and after processing by generateEndpointHash.
+
+        Return:
+            bool: whether the resource is static and should be ignored.
+        """
+
+        ignore_exts = 'js,gif,jpg,png,css,svg,woff,woff2,ttf,jpeg,ico,doc,docx,exe,pdf,xls,pkg,jar,zip,tar.gz,xlsx'.split(',')
+
+        parsed = urlparse(url)
+        extension = parsed.path.split('.')[-1]
+
+        return extension in ignore_exts
 
     def generateEndpointHash(self, analyzedRequest):
         """
