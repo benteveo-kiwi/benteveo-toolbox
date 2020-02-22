@@ -145,31 +145,6 @@ class EndpointTableModel(AbstractTableModel):
             log("Invalid fuzzedMetadata. Ignoring.")
             self.fuzzedMetadata = {}
 
-    def generateEndpointHash(self, analyzedRequest):
-        """
-        In this endpoint, a hash is a string that is used to group requests.
-
-        Requests that have the same URL and method should be grouped together to avoid duplication of testing effort. For example, "/users/1" and "/users/2" should both generate the same hash.
-
-        We do this by having a collection of regular expressions that are ran against each folder in every URL. If the regex matches, the folder is replaced in such a way that it becomes "/users/{ID}", which results in equal hashes for these kind of endpoints.
-
-        Args:
-            analyzedRequest: an analyzed request as returned by helpers.analyzeRequest()
-        """
-        url = analyzedRequest.url.toString().split("?")[0]
-        method = analyzedRequest.method
-
-        hash_url = []
-        for folder in url.split("/"):
-            if self.isId(folder):
-                hash_url.append("{ID}")
-            else:
-                hash_url.append(folder)
-
-        url = "/".join(hash_url)
-
-        return method + "|" + url, url, method
-
     def isId(self, folder):
         """
         Checks if this "folder" of the URL path looks like an ID according to our predefined regular expressions.
@@ -218,16 +193,52 @@ class EndpointTableModel(AbstractTableModel):
         """
         return self.endpoints.values()[rowIndex]
 
+    def getValueAt(self, rowIndex, columnIndex):
+        """
+        Gets the value for each individual cell.
+
+        Args:
+            rowIndex: the y value to fetch the value for.
+            columnIndex: the y value to fetch the value for.
+        """
+        endpointModel = self.getEndpoint(rowIndex)
+        if columnIndex == 0:
+            return endpointModel.method
+        elif columnIndex == 1:
+            return endpointModel.url
+        elif columnIndex == 2:
+            return len(endpointModel.requests)
+        elif columnIndex == 3:
+            return endpointModel.percentSameStatus
+        elif columnIndex == 4:
+            return endpointModel.percentSameLength
+        elif columnIndex == 5:
+            return endpointModel.containsId
+        elif columnIndex == 6:
+            return endpointModel.fuzzed
+
+    def getColumnClass(self, columnIndex):
+        """
+        Get column class. Gets called by swing to determine sorting.
+
+        Args:
+            columnIndex: the columnIndex to determine the class for.
+        """
+        if columnIndex in [2, 3, 4]:
+            return Integer(0).class
+        if columnIndex in [5, 6]:
+            return Boolean(True).class
+        else:
+            return String("").class
+
     def add(self, httpRequestResponse):
         """
         Adds a http request to the internal state. Note that this method does not trigger a reload of the table. This should be done by the caller to this function once all httpRequestResponses have been added.
 
         This is called by a click on the "refresh" button, which fetches requests from previous requests. We ignore requests without responses and OPTIONS requests as these don't tend to have IDOR/Fuzzable bugs.
 
-
-
         Args:
-            httpRequestResponse: an HttpRequestResponse java object as returned by burp.
+            httpRequestResponse: an HttpRequestResponse java object as returned by burp. We'll store it into a file for reduced RAM usage using `IBurpExtenderCallbacks.saveBuffersToTempFiles()`.
 
         Return:
             boolean: whether the request was added or not. It is not added if method is OPTIONS, if there is no response stored for the original request, or if there are too many requests for this endpoint already.
@@ -262,6 +273,31 @@ class EndpointTableModel(AbstractTableModel):
 
             return added
 
+    def generateEndpointHash(self, analyzedRequest):
+        """
+        In this endpoint, a hash is a string that is used to group requests.
+
+        Requests that have the same URL and method should be grouped together to avoid duplication of testing effort. For example, "/users/1" and "/users/2" should both generate the same hash.
+
+        We do this by having a collection of regular expressions that are ran against each folder in every URL. If the regex matches, the folder is replaced in such a way that it becomes "/users/{ID}", which results in equal hashes for these kind of endpoints.
+
+        Args:
+            analyzedRequest: an analyzed request as returned by helpers.analyzeRequest()
+        """
+        url = analyzedRequest.url.toString().split("?")[0]
+        method = analyzedRequest.method
+
+        hash_url = []
+        for folder in url.split("/"):
+            if self.isId(folder):
+                hash_url.append("{ID}")
+            else:
+                hash_url.append(folder)
+
+        url = "/".join(hash_url)
+
+        return method + "|" + url, url, method
+
     def clear(self):
         """
         Gets called when the user clicks the Refresh button in order to clear the state.
@@ -291,33 +327,9 @@ class EndpointTableModel(AbstractTableModel):
         self.state.requestTableModel.updateRequests(endpoint.requests)
         self.state.requestTableModel.selectRow(0)
 
-    def getValueAt(self, rowIndex, columnIndex):
-        """
-        Gets the value for each individual cell.
-
-        Args:
-            rowIndex: the y value to fetch the value for.
-            columnIndex: the y value to fetch the value for.
-        """
-        endpointModel = self.getEndpoint(rowIndex)
-        if columnIndex == 0:
-            return endpointModel.method
-        elif columnIndex == 1:
-            return endpointModel.url
-        elif columnIndex == 2:
-            return len(endpointModel.requests)
-        elif columnIndex == 3:
-            return endpointModel.percentSameStatus
-        elif columnIndex == 4:
-            return endpointModel.percentSameLength
-        elif columnIndex == 5:
-            return endpointModel.containsId
-        elif columnIndex == 6:
-            return endpointModel.fuzzed
-
     def update(self, requestModel, httpRequestResponse):
         """
-        Allows for new data to be stored regarding our already stored requests.
+        Allows for new data to be stored regarding our already stored requests. They are persisted to disk for reduced RAM usage.
 
         In particular, this method is called when requests are repeated, and new information is stored regarding those responses, such as the status code or the response length.
 
@@ -342,20 +354,6 @@ class EndpointTableModel(AbstractTableModel):
             requestModel.repeated = True
 
             self.fireTableDataChanged()
-
-    def getColumnClass(self, columnIndex):
-        """
-        Get column class. Gets called by swing to determine sorting.
-
-        Args:
-            columnIndex: the columnIndex to determine the class for.
-        """
-        if columnIndex in [2, 3, 4]:
-            return Integer(0).class
-        if columnIndex in [5, 6]:
-            return Boolean(True).class
-        else:
-            return String("").class
 
     def setFuzzed(self, endpointModel, fuzzed):
         """
