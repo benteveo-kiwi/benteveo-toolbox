@@ -137,7 +137,7 @@ class EndpointTableModel(AbstractTableModel):
         self.state = state
         self.callbacks = callbacks
         self.endpoints = OrderedDict()
-        self.MAX_REQUESTS_PER_ENDPOINT = 100
+        self.MAX_REQUESTS_PER_ENDPOINT = 20
 
         try:
             self.fuzzedMetadata = json.loads(self.callbacks.loadExtensionSetting('fuzzed-metadata'))
@@ -236,6 +236,7 @@ class EndpointTableModel(AbstractTableModel):
         with self.lock:
 
             analyzedRequest = self.callbacks.helpers.analyzeRequest(httpRequestResponse)
+            httpRequestResponse = self.callbacks.saveBuffersToTempFiles(httpRequestResponse)
 
             hash, url, method = self.generateEndpointHash(analyzedRequest)
 
@@ -273,7 +274,7 @@ class EndpointTableModel(AbstractTableModel):
             if length == 0:
                 return
 
-            self.endpoints = OrderedDict()
+            self.endpoints.clear()
             self.fireTableDataChanged()
 
 
@@ -332,6 +333,8 @@ class EndpointTableModel(AbstractTableModel):
                 msg = "No response received on update call() for %s. Is the server now offline?" % (requestModel.analyzedRequest.url)
                 log(msg)
                 raise NoResponseException(msg)
+
+            httpRequestResponse = self.callbacks.saveBuffersToTempFiles(httpRequestResponse)
 
             requestModel.repeatedHttpRequestResponse = httpRequestResponse
             requestModel.repeatedAnalyzedResponse = self.callbacks.helpers.analyzeResponse(httpRequestResponse.response)
