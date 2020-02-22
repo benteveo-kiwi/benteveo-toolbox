@@ -132,7 +132,7 @@ def setupLogging(logLevel=None):
     format = '[%(levelname)s %(asctime)s]: %(message)s'
     logging.basicConfig(format=format, level=logLevel, stream=sys.stderr)
 
-    handler = logging.StreamHandler(sys.stdout)
+    handler = logging.StreamHandler(sys.stderr)
     handler.setLevel(logLevel)
     formatter = logging.Formatter(format)
     handler.setFormatter(formatter)
