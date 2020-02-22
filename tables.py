@@ -220,9 +220,11 @@ class EndpointTableModel(AbstractTableModel):
 
     def add(self, httpRequestResponse):
         """
-        Adds a http request to the internal state and fires the trigger for a reload of the table.
+        Adds a http request to the internal state. Note that this method does not trigger a reload of the table. This should be done by the caller to this function once all httpRequestResponses have been added.
 
-        This is called by a click on the "refresh" button, which fetches requests from previous requests. We ignore requests without responses and OPTIONS requests as these don't tend to have IDOR.
+        This is called by a click on the "refresh" button, which fetches requests from previous requests. We ignore requests without responses and OPTIONS requests as these don't tend to have IDOR/Fuzzable bugs.
+
+
 
         Args:
             httpRequestResponse: an HttpRequestResponse java object as returned by burp.
@@ -256,8 +258,6 @@ class EndpointTableModel(AbstractTableModel):
                 added = True
             else:
                 added = False
-
-            self.fireTableDataChanged() # this is used insted of fireTableDataChanged because of a crash when the table is sorted. If performance is too much of an issue, we can remove this out of here and make it the responsibility of the caller.
 
             return added
 

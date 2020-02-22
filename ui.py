@@ -422,6 +422,8 @@ class ToolboxCallbacks(NewThreadCaller):
             for request in requests:
                 self.state.endpointTableModel.add(request)
 
+        self.state.endpointTableModel.fireTableDataChanged()
+
         button = event.source
         button.setText("Refreshed (%s)" % (str(len(self.state.endpointTableModel.endpoints))))
 
