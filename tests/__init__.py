@@ -148,6 +148,8 @@ class BaseTestClass(unittest.TestCase):
 
         state.sessionCheckTextarea.text = "GET / HTTP/1.1\r\nHost: example.org\r\n\r\n"
         state.executorService = GenericMock()
+        state.shutdown = False
+
 
         request = ArrayList()
         request.add("GET / HTTP/1.1")
