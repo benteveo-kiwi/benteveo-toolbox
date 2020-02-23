@@ -570,7 +570,7 @@ class ToolboxCallbacks(NewThreadCaller):
         for key in endpoints:
             endpoint = endpoints[key]
             for request in endpoint.requests:
-                runnable = PythonFunctionRunnable(self.resendRequestModel, args=[request])
+                runnable = PythonFunctionRunnable(resend_request_model, args=[self.state, self.burpCallbacks, request])
                 futures.append(self.state.executorService.submit(runnable))
                 nb += 1
 
