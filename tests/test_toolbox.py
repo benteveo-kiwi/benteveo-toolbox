@@ -124,7 +124,7 @@ class TestToolbox(BaseTestClass):
         etm.clear()
 
         self.assertEqual(len(etm.endpoints), 0)
-        self.assertEqual(etm.fireTableDataChanged.call_count, 2) # one for add, one for clear.
+        self.assertEqual(etm.fireTableDataChanged.call_count, 1)
 
     def testClearWhenEmpty(self):
         etm, state, callbacks = self._cetm()
@@ -405,7 +405,8 @@ class TestToolbox(BaseTestClass):
         newResponse = GenericMock()
         etm.update(requestModel, newResponse)
 
-        self.assertEquals(requestModel.repeatedHttpRequestResponse, newResponse)
+        self.assertEquals(callbacks.saveBuffersToTempFiles.call_args[0], newResponse)
+        self.assertEquals(requestModel.repeatedHttpRequestResponse, callbacks.saveBuffersToTempFiles.return_value)
         self.assertEquals(requestModel.repeated, True)
         self.assertEquals(requestModel.repeatedAnalyzedResponse, callbacks.helpers.analyzeResponse.return_value)
 

@@ -30,7 +30,7 @@ from javax.swing import JTextField
 from javax.swing import SwingUtilities
 from tables import Table, CellHighlighterRenderer, TableMouseAdapter
 from threading import Lock
-from utility import apply_rules, get_header, log, sendMessageToSlack, importBurpExtension, LogDecorator, PythonFunctionRunnable
+from utility import apply_rules, get_header, log, sendMessageToSlack, importBurpExtension, LogDecorator, PythonFunctionRunnable, resend_request_model
 from utility import REPLACE_HEADER_NAME, NoSuchHeaderException, ShutdownException
 import jarray
 import java.lang.Exception
