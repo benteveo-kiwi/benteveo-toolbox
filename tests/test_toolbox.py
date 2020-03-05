@@ -3,18 +3,18 @@ from burp import IBurpExtenderCallbacks, IExtensionHelpers, IScannerInsertionPoi
 from implementations import ScannerInsertionPoint
 from java.lang import String, IllegalArgumentException, UnsupportedOperationException
 from java.net import URL
-from java.util import ArrayList
 from models import EndpointModel, RequestModel, ReplacementRuleModel
 from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableModel
-from ui import ToolboxCallbacks, STATUS_OK, STATUS_FAILED
 from tests import GenericMock, TestException, raise_exception, BaseTestClass
+from ui import ToolboxCallbacks, STATUS_OK, STATUS_FAILED
+from utility import resend_request_model
+import benteveo_toolbox
+import fuzz
 import math
 import operator
 import ui
 import unittest
 import utility
-import benteveo_toolbox
-import fuzz
 
 utility.INSIDE_UNIT_TEST = True
 
@@ -370,18 +370,17 @@ class TestToolbox(BaseTestClass):
                 self.assertEquals(state.executorService.submit.call_count, 2)
 
     def testResendRequestModel(self):
-        with self.mockUtilityCalls():
-            cb, state, burpCallbacks = self._ctc()
-            etm, _, _, endpointModel = self._cetm_populate()
+        cb, state, burpCallbacks = self._ctc()
+        etm, _, _, endpointModel = self._cetm_populate()
 
-            state.endpointTableModel = etm
-            state.endpointTableModel.update = GenericMock()
-            ui.apply_rules.return_value = (1, bytearray("lel"))
+        state.endpointTableModel = etm
+        state.endpointTableModel.update = GenericMock()
+        ui.apply_rules.return_value = (1, bytearray("lel"))
 
-            cb.resendRequestModel(endpointModel.requests[0])
+        resend_request_model(state, burpCallbacks, endpointModel.requests[0])
 
-            self.assertEquals(burpCallbacks.makeHttpRequest.call_count, 1)
-            self.assertEquals(state.endpointTableModel.update.call_count, 1)
+        self.assertEquals(burpCallbacks.makeHttpRequest.call_count, 1)
+        self.assertEquals(state.endpointTableModel.update.call_count, 1)
 
     def testResendRequestModelLogoutURL(self):
         with self.mockUtilityCalls():
@@ -794,51 +793,6 @@ class TestToolbox(BaseTestClass):
         ret = sip.buildRequest(String("lol").getBytes())
 
         self.assertEquals(sip.updateContentLength.call_count, 1)
-
-    def testGetInsertionPointsPathRoot(self):
-        cb, state, burpCallbacks = self._ctc()
-
-        headers = ArrayList()
-        headers.add("GET / HTTP/1.1")
-        headers.add("Host: example.org")
-        headers.add("Custom-header: example.org")
-
-        request = GenericMock()
-        request.repeatedAnalyzedRequest.parameters = []
-        request.repeatedAnalyzedRequest.headers = headers
-
-        insertionPoints = cb.getPathInsertionPoints(request)
-        self.assertEquals(len(insertionPoints), 0)
-
-    def testGetInsertionPointsHeaders(self):
-        cb, state, burpCallbacks = self._ctc()
-
-        headers = ArrayList()
-        headers.add("GET / HTTP/1.1")
-        headers.add("Host: example.org")
-        headers.add("Custom-header: LOL")
-
-        request = GenericMock()
-        request.repeatedAnalyzedRequest.parameters = []
-        request.repeatedAnalyzedRequest.headers = headers
-
-        insertionPoints = cb.getInsertionPoints(request, False)
-        self.assertEquals(len(insertionPoints), 2)
-        self.assertEquals(insertionPoints[0].type, IScannerInsertionPoint.INS_HEADER)
-        self.assertEquals(insertionPoints[0].baseValue, "example.org")
-        self.assertEquals(insertionPoints[1].type, IScannerInsertionPoint.INS_HEADER)
-        self.assertEquals(insertionPoints[1].baseValue, "LOL")
-
-    def testInsertionPointHeaderBuildRequest(self):
-        callbacks = GenericMock()
-
-        request = String("GET / HTTP/1.1\r\nHost: lelele\r\n\r\n").getBytes()
-
-        sip = ScannerInsertionPoint(callbacks, request, "Host", "lelele", IScannerInsertionPoint.INS_HEADER, 22, 28)
-        sip.updateContentLength = lambda x: x
-
-        ret = sip.buildRequest(String("lol").getBytes())
-        self.assertTrue("Host: lol" in str(String(ret)))
 
     def testIsStaticResource(self):
         etm, state, callbacks = self._cetm()

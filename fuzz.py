@@ -1,3 +1,5 @@
+from burp import IScannerInsertionPoint
+from implementations import ScannerInsertionPoint
 from java.util.concurrent import Executors, ExecutionException
 from tables import NoResponseException
 from threading import Lock
@@ -214,8 +216,14 @@ class InsertionPointsGenerator(object):
     Generates insertion points given a request.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, callbacks):
+        """
+        Main constructor.
+
+        Args:
+            callbacks: the burp callbacks object.
+        """
+        self.callbacks = callbacks
 
     def getInsertionPoints(self, request, onlyParameters):
         """
@@ -235,7 +243,7 @@ class InsertionPointsGenerator(object):
             if parameter.type == IParameter.PARAM_COOKIE and onlyParameters:
                 continue
 
-            insertionPoint = ScannerInsertionPoint(self.burpCallbacks, request.repeatedHttpRequestResponse.request, parameter.name, parameter.value, parameter.type, parameter.valueStart, parameter.valueEnd)
+            insertionPoint = ScannerInsertionPoint(self.callbacks, request.repeatedHttpRequestResponse.request, parameter.name, parameter.value, parameter.type, parameter.valueStart, parameter.valueEnd)
             insertionPoints.append(insertionPoint)
 
         if onlyParameters:
@@ -289,7 +297,7 @@ class InsertionPointsGenerator(object):
 
                 endOffset = startOffset + len(headerValue)
 
-                insertionPoint = ScannerInsertionPoint(self.burpCallbacks, request.repeatedHttpRequestResponse.request, headerName, headerValue, IScannerInsertionPoint.INS_HEADER, startOffset, endOffset)
+                insertionPoint = ScannerInsertionPoint(self.callbacks, request.repeatedHttpRequestResponse.request, headerName, headerValue, IScannerInsertionPoint.INS_HEADER, startOffset, endOffset)
                 insertionPoints.append(insertionPoint)
 
             lineStartOffset += len(header) + len("\r\n")
@@ -326,7 +334,7 @@ class InsertionPointsGenerator(object):
                     value = firstLine[startOffset:endOffset]
                     type = IScannerInsertionPoint.INS_URL_PATH_FOLDER if char == "/" else IScannerInsertionPoint.INS_URL_PATH_FILENAME
 
-                    insertionPoint = ScannerInsertionPoint(self.burpCallbacks, request.repeatedHttpRequestResponse.request, "pathParam", value, type, startOffset, endOffset)
+                    insertionPoint = ScannerInsertionPoint(self.callbacks, request.repeatedHttpRequestResponse.request, "pathParam", value, type, startOffset, endOffset)
 
                     insertionPoints.append(insertionPoint)
                     startOffset = offset + 1

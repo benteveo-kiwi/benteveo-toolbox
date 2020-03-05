@@ -1,10 +1,63 @@
+from burp import IBurpExtenderCallbacks, IExtensionHelpers, IScannerInsertionPoint
+from fuzz import FuzzRunner, InsertionPointsGenerator
+from implementations import ScannerInsertionPoint
+from java.lang import String, IllegalArgumentException, UnsupportedOperationException
+from java.util import ArrayList
 from tests import GenericMock, TestException, raise_exception, BaseTestClass, ImportCallbackMock
 import utility
-from fuzz import FuzzRunner
 
 utility.INSIDE_UNIT_TEST = True
 
 class TestFuzz(BaseTestClass):
-    def testCanInstantiateWithoutCrashing(self):
-        callbacks = ImportCallbackMock()
-        fr = FuzzRunner()
+
+    def _ipg(self):
+        callbacks = GenericMock()
+        ipg = InsertionPointsGenerator(callbacks)
+
+        return ipg, callbacks
+
+    def testGetInsertionPointsPathRoot(self):
+        ipg, callbacks = self._ipg()
+
+        headers = ArrayList()
+        headers.add("GET / HTTP/1.1")
+        headers.add("Host: example.org")
+        headers.add("Custom-header: example.org")
+
+        request = GenericMock()
+        request.repeatedAnalyzedRequest.parameters = []
+        request.repeatedAnalyzedRequest.headers = headers
+
+        insertionPoints = ipg.getPathInsertionPoints(request)
+
+        self.assertEquals(len(insertionPoints), 0)
+
+    def testGetInsertionPointsHeaders(self):
+        ipg, callbacks = self._ipg()
+
+        headers = ArrayList()
+        headers.add("GET / HTTP/1.1")
+        headers.add("Host: example.org")
+        headers.add("Custom-header: LOL")
+
+        request = GenericMock()
+        request.repeatedAnalyzedRequest.parameters = []
+        request.repeatedAnalyzedRequest.headers = headers
+
+        insertionPoints = ipg.getInsertionPoints(request, False)
+        self.assertEquals(len(insertionPoints), 2)
+        self.assertEquals(insertionPoints[0].type, IScannerInsertionPoint.INS_HEADER)
+        self.assertEquals(insertionPoints[0].baseValue, "example.org")
+        self.assertEquals(insertionPoints[1].type, IScannerInsertionPoint.INS_HEADER)
+        self.assertEquals(insertionPoints[1].baseValue, "LOL")
+
+    def testInsertionPointHeaderBuildRequest(self):
+        callbacks = GenericMock()
+
+        request = String("GET / HTTP/1.1\r\nHost: lelele\r\n\r\n").getBytes()
+
+        sip = ScannerInsertionPoint(callbacks, request, "Host", "lelele", IScannerInsertionPoint.INS_HEADER, 22, 28)
+        sip.updateContentLength = lambda x: x
+
+        ret = sip.buildRequest(String("lol").getBytes())
+        self.assertTrue("Host: lol" in str(String(ret)))
