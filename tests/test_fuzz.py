@@ -61,3 +61,20 @@ class TestFuzz(BaseTestClass):
 
         ret = sip.buildRequest(String("lol").getBytes())
         self.assertTrue("Host: lol" in str(String(ret)))
+
+    def testGetInsertionPointsPathQueryString(self):
+        ipg, callbacks = self._ipg()
+        cb, state, burpCallbacks = self._ctc()
+
+        headers = ArrayList()
+        headers.add("GET /folder1/folder1/file.php?lel=true&lala=1 HTTP/1.1")
+        headers.add("Host: example.org")
+
+        request = GenericMock()
+        request.repeatedAnalyzedRequest.parameters = []
+        request.repeatedAnalyzedRequest.headers = headers
+
+        insertionPoints = ipg.getPathInsertionPoints(request)
+        self.assertEquals(len(insertionPoints), 3)
+        self.assertEquals(insertionPoints[2].type, IScannerInsertionPoint.INS_URL_PATH_FILENAME)
+        self.assertEquals(insertionPoints[2].value, "file.php")
