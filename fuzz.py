@@ -1,9 +1,11 @@
 from burp import IScannerInsertionPoint, IParameter
-from implementations import ScannerInsertionPoint
+from implementations import ScannerInsertionPoint, ContextMenuInvocation 
 from java.util.concurrent import Executors, ExecutionException
 from tables import NoResponseException
 from threading import Lock
 from utility import log, ShutdownException, resend_request_model, PythonFunctionRunnable
+import java.lang.Exception
+import java.lang.NullPointerException
 import time
 import utility
 

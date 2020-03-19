@@ -261,3 +261,25 @@ class TestFuzz(BaseTestClass):
         ret = sip.buildRequest(String("lol").getBytes())
 
         self.assertEquals(sip.updateContentLength.call_count, 1)
+
+    def testGetContextMenuInvocation(self):
+        fr, state, callbacks, extensions = self._fr()
+
+        extension = GenericMock()
+        scanner = GenericMock()
+        extension.getScannerChecks.return_value = [scanner]
+        fr.extensions = [("paramminer", extension)] # the paramminer string triggers the clicks.
+        fr.fuzzRequestModel(GenericMock())
+
+        self.assertEquals(state.executorService.submit.call_count, 5)
+
+        state.executorService.submit.return_value.isDone = raise_exception
+
+        callsIsDone = False
+        try:
+            fr.fuzzRequestModel(GenericMock())
+        except TestException:
+            callsIsDone = True
+
+        self.assertTrue(callsIsDone, "Calls is done.")
+        self.assertTrue(extension.getContextMenuFactories.call_count, 5)

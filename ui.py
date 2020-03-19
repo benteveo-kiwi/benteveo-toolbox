@@ -33,8 +33,6 @@ from threading import Lock
 from utility import apply_rules, get_header, log, sendMessageToSlack, importBurpExtension, LogDecorator, PythonFunctionRunnable, resend_request_model
 from utility import REPLACE_HEADER_NAME, NoSuchHeaderException, ShutdownException
 import jarray
-import java.lang.Exception
-import java.lang.NullPointerException
 import logging
 import re
 import sys
