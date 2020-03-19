@@ -9,7 +9,11 @@ import logging
 import re
 import string
 import sys
+import time
 import urllib2
+
+# Whether we are running inside a unit test.
+INSIDE_UNIT_TEST = False
 
 # Application logger.
 logger = None
@@ -398,3 +402,21 @@ def importBurpExtension(jarFile, burpExtenderClass, callbacks):
     burpExtender.registerExtenderCallbacks(callbacksWrapper)
 
     return BurpExtension(callbacksWrapper)
+
+def sleep(state, sleepTime):
+    """
+    Sleeps for a certain time. Checks for state.shutdown and if it is true raises an unhandled exception that crashes the thread. When inside a test, does nothing.
+
+    Args:
+        state: the state object.
+        sleepTime: the time in seconds.
+    """
+
+    if INSIDE_UNIT_TEST:
+        return
+
+    if state.shutdown:
+        log("Thread shutting down.")
+        raise ShutdownException()
+
+    time.sleep(sleepTime)

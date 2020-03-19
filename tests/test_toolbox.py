@@ -510,7 +510,7 @@ class TestToolbox(BaseTestClass):
 
             cb.fuzzButtonClicked(GenericMock())
 
-            self.assertEquals(state.perRequestExecutorService.submit.call_count, 1)
+            self.assertEquals(state.fuzzExecutorService.submit.call_count, 1)
 
     def testPersistsMetadata(self):
         etm, state, callbacks = self._cetm()
@@ -553,7 +553,7 @@ class TestToolbox(BaseTestClass):
 
             cb.fuzzButtonClicked(GenericMock())
 
-            self.assertEquals(state.perRequestExecutorService.submit.call_count, 0)
+            self.assertEquals(state.fuzzExecutorService.submit.call_count, 0)
 
     def testMarksEndpointsAsFuzzed(self):
         with self.mockUtilityCalls():
@@ -571,7 +571,7 @@ class TestToolbox(BaseTestClass):
 
             cb.fuzzButtonClicked(GenericMock())
 
-            self.assertEquals(state.perRequestExecutorService.submit.call_count, 1)
+            self.assertEquals(state.fuzzExecutorService.submit.call_count, 1)
             self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 1)
 
     def testMarksEndpointsAsFuzzedOnlyIfReproducible(self):
@@ -600,7 +600,7 @@ class TestToolbox(BaseTestClass):
 
             cb.fuzzButtonClicked(GenericMock())
 
-            self.assertEquals(state.perRequestExecutorService.submit.call_count, 1)
+            self.assertEquals(state.fuzzExecutorService.submit.call_count, 1)
             self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 0)
             self.assertEquals(ui.sendMessageToSlack.call_count, 1)
 

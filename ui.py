@@ -36,7 +36,6 @@ import jarray
 import logging
 import re
 import sys
-import time
 import traceback
 import utility
 
@@ -352,6 +351,7 @@ class ToolboxCallbacks(NewThreadCaller):
         # Avoid instantiating during unit test as it is not needed.
         if not utility.INSIDE_UNIT_TEST:
             self.state.executorService = Executors.newFixedThreadPool(16)
+            self.state.fuzzExecutorService = Executors.newFixedThreadPool(16)
 
             # Beware: if the second argument to two of these importBurpExtension calls is the same, the same extension will be loaded twice. The solution is to recompile the JARs so that the classes do not have the same name.
             log("[+] Loading Backslash Powered Scanner")
@@ -573,7 +573,7 @@ class ToolboxCallbacks(NewThreadCaller):
                 nb += 1
 
         while len(futures) > 0:
-            self.sleep(1)
+            utility.sleep(self.state, 1)
             resendAllButton.setText("%s remaining" % (len(futures)))
 
             for future in futures:
@@ -618,16 +618,3 @@ class ToolboxCallbacks(NewThreadCaller):
             sendMessageToSlack("Scan finished normally with no exceptions.")
         elif nbFuzzedTotal > 0:
             sendMessageToSlack("Scan finished with %s exceptions." % nbExceptions)
-
-    def sleep(self, sleepTime):
-        """
-        Sleeps for a certain time. Checks for state.shutdown and if it is true raises an unhandled exception that crashes the thread.
-
-        Args:
-            sleepTime: the time in seconds.
-        """
-        if self.state.shutdown:
-            log("Thread shutting down.")
-            raise ShutdownException()
-
-        time.sleep(sleepTime)
