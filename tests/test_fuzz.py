@@ -78,3 +78,49 @@ class TestFuzz(BaseTestClass):
         self.assertEquals(len(insertionPoints), 3)
         self.assertEquals(insertionPoints[2].type, IScannerInsertionPoint.INS_URL_PATH_FILENAME)
         self.assertEquals(insertionPoints[2].value, "file.php")
+
+    def testGetInsertionPoints(self):
+        ipg, callbacks = self._ipg()
+
+        request = GenericMock()
+        parameter = GenericMock()
+        parameter.name = "lol"
+        parameter.value = "lol"
+        parameter.type = 1
+        request.repeatedAnalyzedRequest.parameters = [parameter, parameter, parameter]
+        request.repeatedAnalyzedRequest.headers = [parameter, parameter, parameter] # gonna skip the first line in the header
+
+        insertionPoints = ipg.getInsertionPoints(request, False)
+        self.assertEquals(len(insertionPoints), 5)
+
+    def testGetInsertionPointsOnlyParameters(self):
+        ipg, callbacks = self._ipg()
+
+        request = GenericMock()
+        parameter = GenericMock()
+        parameter.name = "lol"
+        parameter.value = "lol"
+        parameter.type = 1
+        request.repeatedAnalyzedRequest.parameters = [parameter, parameter, parameter]
+        request.repeatedAnalyzedRequest.headers = [parameter, parameter, parameter] # gonna skip the first line in the header
+
+        onlyParameters = True
+        insertionPoints = ipg.getInsertionPoints(request, onlyParameters)
+        self.assertEquals(len(insertionPoints), 3)
+
+    def testGetInsertionPointsPath(self):
+        ipg, callbacks = self._ipg()
+
+        headers = ArrayList()
+        headers.add("GET /folder1/folder1/file.php HTTP/1.1")
+        headers.add("Host: example.org")
+
+        request = GenericMock()
+        request.repeatedAnalyzedRequest.parameters = []
+        request.repeatedAnalyzedRequest.headers = headers
+
+        insertionPoints = ipg.getPathInsertionPoints(request)
+        self.assertEquals(len(insertionPoints), 3)
+        self.assertEquals(insertionPoints[0].type, IScannerInsertionPoint.INS_URL_PATH_FOLDER)
+        self.assertEquals(insertionPoints[1].type, IScannerInsertionPoint.INS_URL_PATH_FOLDER)
+        self.assertEquals(insertionPoints[2].type, IScannerInsertionPoint.INS_URL_PATH_FILENAME)

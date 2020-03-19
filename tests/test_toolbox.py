@@ -2,6 +2,7 @@ from benteveo_toolbox import BurpExtender
 from burp import IBurpExtenderCallbacks, IExtensionHelpers, IScannerInsertionPoint
 from java.lang import String, IllegalArgumentException, UnsupportedOperationException
 from java.net import URL
+from java.util import ArrayList
 from models import EndpointModel, RequestModel, ReplacementRuleModel
 from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableModel
 from tests import GenericMock, TestException, raise_exception, BaseTestClass
@@ -623,52 +624,6 @@ class TestToolbox(BaseTestClass):
             self.assertEquals(state.perRequestExecutorService.submit.call_count, 1)
             self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 0)
             self.assertEquals(ui.sendMessageToSlack.call_count, 1)
-
-    def testGetInsertionPoints(self):
-        cb, state, burpCallbacks = self._ctc()
-
-        request = GenericMock()
-        parameter = GenericMock()
-        parameter.name = "lol"
-        parameter.value = "lol"
-        parameter.type = 1
-        request.repeatedAnalyzedRequest.parameters = [parameter, parameter, parameter]
-        request.repeatedAnalyzedRequest.headers = [parameter, parameter, parameter] # gonna skip the first line in the header
-
-        insertionPoints = cb.getInsertionPoints(request, False)
-        self.assertEquals(len(insertionPoints), 5)
-
-    def testGetInsertionPointsOnlyParameters(self):
-        cb, state, burpCallbacks = self._ctc()
-
-        request = GenericMock()
-        parameter = GenericMock()
-        parameter.name = "lol"
-        parameter.value = "lol"
-        parameter.type = 1
-        request.repeatedAnalyzedRequest.parameters = [parameter, parameter, parameter]
-        request.repeatedAnalyzedRequest.headers = [parameter, parameter, parameter] # gonna skip the first line in the header
-
-        onlyParameters = True
-        insertionPoints = cb.getInsertionPoints(request, onlyParameters)
-        self.assertEquals(len(insertionPoints), 3)
-
-    def testGetInsertionPointsPath(self):
-        cb, state, burpCallbacks = self._ctc()
-
-        headers = ArrayList()
-        headers.add("GET /folder1/folder1/file.php HTTP/1.1")
-        headers.add("Host: example.org")
-
-        request = GenericMock()
-        request.repeatedAnalyzedRequest.parameters = []
-        request.repeatedAnalyzedRequest.headers = headers
-
-        insertionPoints = cb.getPathInsertionPoints(request)
-        self.assertEquals(len(insertionPoints), 3)
-        self.assertEquals(insertionPoints[0].type, IScannerInsertionPoint.INS_URL_PATH_FOLDER)
-        self.assertEquals(insertionPoints[1].type, IScannerInsertionPoint.INS_URL_PATH_FOLDER)
-        self.assertEquals(insertionPoints[2].type, IScannerInsertionPoint.INS_URL_PATH_FILENAME)
 
     def testBuildRequestPath(self):
         cb, state, burpCallbacks = self._ctc()
