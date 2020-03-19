@@ -607,7 +607,7 @@ class ToolboxCallbacks(NewThreadCaller):
                 raise
 
             msg = "Scan failed due to an unknown exception."
-            sendMessageToSlack(msg)
+            sendMessageToSlack(self.burpCallbacks, msg)
             logging.error(msg, exc_info=True)
             fuzzButton.setText("Fuzz fail.")
             return
@@ -615,6 +615,6 @@ class ToolboxCallbacks(NewThreadCaller):
         fuzzButton.setText("FUZZ")
 
         if nbFuzzedTotal > 0 and nbExceptions == 0:
-            sendMessageToSlack("Scan finished normally with no exceptions.")
+            sendMessageToSlack(self.burpCallbacks, "Scan finished normally with no exceptions.")
         elif nbFuzzedTotal > 0:
-            sendMessageToSlack("Scan finished with %s exceptions." % nbExceptions)
+            sendMessageToSlack(self.burpCallbacks, "Scan finished with %s exceptions." % nbExceptions)

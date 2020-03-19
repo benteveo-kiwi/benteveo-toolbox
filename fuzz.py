@@ -48,7 +48,7 @@ class FuzzRunner(object):
 
             if endpointsNotReproducibleCount >= 10:
                 log("10 endpoints in a row not reproducible.")
-                sendMessageToSlack("10 endpoints in a row not reproducible, bailing from the current scan.")
+                sendMessageToSlack(self.callbacks, "10 endpoints in a row not reproducible, bailing from the current scan.")
                 break
 
             if endpoint.fuzzed:
@@ -198,7 +198,7 @@ class FuzzRunner(object):
         with self.lock:
             if issues:
                 for issue in issues:
-                    self.burpCallbacks.addScanIssue(issue)
+                    self.callbacks.addScanIssue(issue)
 
 class InsertionPointsGenerator(object):
     """
