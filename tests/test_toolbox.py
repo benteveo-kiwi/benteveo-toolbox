@@ -1,5 +1,5 @@
 from benteveo_toolbox import BurpExtender
-from burp import IBurpExtenderCallbacks, IExtensionHelpers, IScannerInsertionPoint
+from burp import IBurpExtenderCallbacks, IExtensionHelpers
 from java.lang import String, IllegalArgumentException, UnsupportedOperationException
 from java.net import URL
 from java.util import ArrayList
@@ -512,27 +512,6 @@ class TestToolbox(BaseTestClass):
 
             self.assertEquals(state.perRequestExecutorService.submit.call_count, 1)
 
-    def testFuzzRequestModel(self):
-        cb, state, burpCallbacks = self._ctc()
-
-        extension = GenericMock()
-        scanner = GenericMock()
-        extension.getScannerChecks.return_value = [scanner]
-        cb.extensions = [("scanner_name", extension)]
-        cb.fuzzRequestModel(GenericMock())
-
-        self.assertEquals(state.executorService.submit.call_count, 5)
-
-        state.executorService.submit.return_value.isDone = raise_exception
-
-        callsIsDone = False
-        try:
-            cb.fuzzRequestModel(GenericMock())
-        except TestException:
-            callsIsDone = True
-
-        self.assertTrue(callsIsDone, "Calls is done.")
-
     def testPersistsMetadata(self):
         etm, state, callbacks = self._cetm()
         em = GenericMock()
@@ -624,113 +603,6 @@ class TestToolbox(BaseTestClass):
             self.assertEquals(state.perRequestExecutorService.submit.call_count, 1)
             self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 0)
             self.assertEquals(ui.sendMessageToSlack.call_count, 1)
-
-    def testBuildRequestPath(self):
-        cb, state, burpCallbacks = self._ctc()
-
-        firstLine = "GET /folder1/folder1/file.php HTTP/1.1"
-        secondLine = "Host: example.org"
-
-        headers = ArrayList()
-        headers.add(firstLine)
-        headers.add(secondLine)
-
-
-        request = GenericMock()
-        request.repeatedAnalyzedRequest.parameters = []
-        request.repeatedAnalyzedRequest.headers = headers
-        request.repeatedHttpRequestResponse.request = String(firstLine + "\r\n" + secondLine + "\r\n").getBytes()
-
-        insertionPoints = cb.getInsertionPoints(request, False)
-
-        insertionPoints[0].updateContentLength = lambda x: x
-        insertionPoints[1].updateContentLength = lambda x: x
-        insertionPoints[2].updateContentLength = lambda x: x
-
-        burpCallbacks.helpers.urlEncode.return_value = "LOLLOLLOL"
-        ret = insertionPoints[0].buildRequest(String("LOLLOLLOL").getBytes())
-
-        self.assertTrue(str(String(ret)).startswith("GET /LOLLOLLOL/folder1/file.php HTTP/1.1"))
-
-        ret = insertionPoints[1].buildRequest(String("LOLLOLLOL").getBytes())
-        self.assertTrue(str(String(ret)).startswith("GET /folder1/LOLLOLLOL/file.php HTTP/1.1"))
-
-        ret = insertionPoints[2].buildRequest(String("LOLLOLLOL").getBytes())
-        self.assertTrue(str(String(ret)).startswith("GET /folder1/folder1/LOLLOLLOL HTTP/1.1"))
-
-    def testBuildRequestJson(self):
-        callbacks = GenericMock()
-
-        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: lelel\r\n\r\n{\"param\":\"value\"}\r\n").getBytes()
-
-        callbacks.helpers.updateParameter.raise = UnsupportedOperationException
-
-        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_JSON, 65, 70)
-        sip.updateContentLength = lambda x: x
-
-        ret = sip.buildRequest(String("lol").getBytes())
-        self.assertTrue('{"param":"lol"}' in str(String(ret)))
-
-        ret = sip.buildRequest(String("herecomethe\"quotes").getBytes())
-        self.assertTrue('{"param":"herecomethe\\"quotes"}' in str(String(ret)))
-
-    def testBuildRequestXml(self):
-        callbacks = GenericMock()
-
-        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: lelel\r\n\r\n<xml>lol</xml>\r\n").getBytes()
-
-        callbacks.helpers.updateParameter.raise = UnsupportedOperationException
-
-        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_XML, 60, 63)
-        sip.updateContentLength = lambda x: x
-
-        ret = sip.buildRequest(String("evil <awfafw ''\"").getBytes())
-
-        self.assertTrue("<xml>evil &lt;awfafw &apos;&apos;&quot;</xml>" in str(String(ret)))
-
-    def testBuildRequestXmlAttr(self):
-        callbacks = GenericMock()
-
-        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: lelel\r\n\r\n<xml a=\"lol\">whatever</xml>\r\n").getBytes()
-
-        callbacks.helpers.updateParameter.raise = UnsupportedOperationException
-
-        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_XML_ATTR, 63, 66)
-        sip.updateContentLength = lambda x: x
-
-        ret = sip.buildRequest(String("evil <awfafw ''\"").getBytes())
-
-        self.assertTrue("<xml a=\"evil &lt;awfafw &apos;&apos;&quot;\">whatever</xml>" in str(String(ret)))
-
-    def testBuildRequestJsonNumbers(self):
-        callbacks = GenericMock()
-
-        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: 16\r\n\r\n{\"param\":1234}\r\n").getBytes()
-
-        callbacks.helpers.updateParameter.raise = UnsupportedOperationException
-
-        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_JSON, 61, 65)
-        sip.updateContentLength = lambda x: x
-
-        ret = sip.buildRequest(String("lol").getBytes())
-        self.assertTrue('{"param":"lol"}' in str(String(ret)))
-
-        ret = sip.buildRequest(String("herecomethe\"quotes").getBytes())
-        self.assertTrue('{"param":"herecomethe\\"quotes"}' in str(String(ret)))
-
-    def testBuildRequestUpdatesContentLength(self):
-        callbacks = GenericMock()
-
-        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: 16\r\n\r\n{\"param\":1234}\r\n").getBytes()
-
-        callbacks.helpers.updateParameter.raise = UnsupportedOperationException
-
-        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_JSON, 61, 65)
-        sip.updateContentLength = GenericMock()
-
-        ret = sip.buildRequest(String("lol").getBytes())
-
-        self.assertEquals(sip.updateContentLength.call_count, 1)
 
     def testIsStaticResource(self):
         etm, state, callbacks = self._cetm()

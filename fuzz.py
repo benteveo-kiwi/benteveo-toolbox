@@ -1,4 +1,4 @@
-from burp import IScannerInsertionPoint
+from burp import IScannerInsertionPoint, IParameter
 from implementations import ScannerInsertionPoint
 from java.util.concurrent import Executors, ExecutionException
 from tables import NoResponseException
@@ -23,7 +23,7 @@ class FuzzRunner(object):
 
     def run(self):
         """
-        Main run method. Blocks the calling thread until it is finished.
+        Main run method. Blocks the calling thread until threads are finished running.
         """
         return self.fuzzEndpoints()
 
@@ -139,6 +139,8 @@ class FuzzRunner(object):
         """
         self.sleep(0.2)
 
+        insertionPointsGenerator = InsertionPointsGenerator(self.callbacks)
+
         for name, extension in self.extensions:
             for activeScanner in extension.getScannerChecks():
                 if name == "shelling":
@@ -146,7 +148,7 @@ class FuzzRunner(object):
                 else:
                     onlyParameters = False
 
-                insertionPoints = self.getInsertionPoints(request, onlyParameters)
+                insertionPoints = insertionPointsGenerator.getInsertionPoints(request, onlyParameters)
 
                 futures = []
                 for insertionPoint in insertionPoints:
@@ -171,11 +173,14 @@ class FuzzRunner(object):
 
     def sleep(self, sleepTime):
         """
-        Sleeps for a certain time. Checks for state.shutdown and if it is true raises an unhandled exception that crashes the thread.
+        Sleeps for a certain time. Checks for state.shutdown and if it is true raises an unhandled exception that crashes the thread. When inside a test, does nothing.
 
         Args:
             sleepTime: the time in seconds.
         """
+        if utility.INSIDE_UNIT_TEST:
+            return
+
         if self.state.shutdown:
             log("Thread shutting down.")
             raise ShutdownException()
