@@ -68,7 +68,6 @@ class FuzzRunner(object):
                     endpointsNotReproducibleCount = 0
                     nbFuzzedTotal += 1
 
-
                     runnable = PythonFunctionRunnable(self.fuzzRequestModel, args=[request])
                     futures.append((endpoint, request, self.state.fuzzExecutorService.submit(runnable)))
 
@@ -141,6 +140,7 @@ class FuzzRunner(object):
 
         insertionPointsGenerator = InsertionPointsGenerator(self.callbacks)
 
+        futures = []
         for name, extension in self.extensions:
             for activeScanner in extension.getScannerChecks():
                 if name == "shelling":
@@ -150,7 +150,6 @@ class FuzzRunner(object):
 
                 insertionPoints = insertionPointsGenerator.getInsertionPoints(request, onlyParameters)
 
-                futures = []
                 for insertionPoint in insertionPoints:
                     runnable = PythonFunctionRunnable(self.doActiveScan, args=[activeScanner, request.repeatedHttpRequestResponse, insertionPoint])
                     futures.append(self.state.executorService.submit(runnable))
