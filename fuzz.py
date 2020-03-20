@@ -8,6 +8,7 @@ import java.lang.Exception
 import java.lang.NullPointerException
 import time
 import utility
+import logging
 
 class FuzzRunner(object):
     """
@@ -117,7 +118,7 @@ class FuzzRunner(object):
                         self.state.endpointTableModel.setFuzzed(endpoint, True)
                         log("Finished fuzzing %s" % endpoint.url)
                     else:
-                        log("Fuzzing complete but did not mark as fuzzed becauase no longer reproducible at %s." % endpoint.url)
+                        log("Fuzzing complete but did not mark as fuzzed because no longer reproducible at %s." % endpoint.url)
 
                     break
 
