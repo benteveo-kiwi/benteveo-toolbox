@@ -101,8 +101,6 @@ class FuzzRunner(object):
             for tuple in futures:
                 endpoint, request, future = tuple
                 if future.isDone():
-                    log("len futures isDone" + str(len(futures)))
-
                     try:
                         future.get()
                     except ExecutionException:
@@ -165,8 +163,6 @@ class FuzzRunner(object):
 
             for future in futures:
                 if future.isDone():
-                    log("len futures isDone" + str(len(futures)))
-                    log(future)
                     future.get()
                     futures.remove(future)
 
