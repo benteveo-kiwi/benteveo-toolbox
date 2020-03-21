@@ -1,6 +1,7 @@
 from burp import IBurpExtender
 from implementations import Tab, HttpListener, MessageEditorController, ExtensionStateListener
 from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableModel
+from java.util import TimerTask, Timer
 from tables import Table
 from ui import ToolboxUI, STATUS_FAILED
 import utility
@@ -47,3 +48,21 @@ class BurpExtender(IBurpExtender):
         callbacks.registerHttpListener(HttpListener(state, callbacks))
         callbacks.setExtensionName("Benteveo Toolbox")
         callbacks.registerExtensionStateListener(ExtensionStateListener(state));
+
+        # Issue checker.
+        state.timer = Timer()
+        state.timer.scheduleAtFixedRate(IssueChecker(callbacks), 1000, 1000)
+
+class IssueChecker(TimerTask):
+    """
+    Periodically checks for the presence of new issues and reports them to slack.
+    """
+    def __init__(self, callbacks):
+        pass
+
+    def run(self):
+        try:
+            pass
+        except:
+            # It's very important to not crash inside a timer, apparently.
+            logging.error("Error in IssueChecker.", exc_info=True)

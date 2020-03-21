@@ -134,6 +134,9 @@ class ExtensionStateListener(IExtensionStateListener):
         self.state.fuzzExecutorService.shutdown()
         self.state.shutdown = True
 
+        self.state.timer.cancel()
+        self.state.timer.purge()
+
         for extensionName, extension in self.state.toolboxCallbacks.extensions:
             for extensionStateListener in extension.getExtensionStateListeners():
                 extensionStateListener.extensionUnloaded()
