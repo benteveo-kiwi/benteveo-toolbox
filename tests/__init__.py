@@ -1,3 +1,4 @@
+from benteveo_toolbox import IssueChecker
 from collections import OrderedDict
 from java.awt import Component
 from java.lang import String, IllegalArgumentException, UnsupportedOperationException, Class
@@ -166,6 +167,18 @@ class BaseTestClass(unittest.TestCase):
         Create ReplacementRuleTableModel convenience method.
         """
         return ReplacementRuleTableModel()
+
+    def _ic(self):
+        """
+        Create IssueChecker convenience method
+        """
+        state = GenericMock()
+        callbacks = GenericMock()
+        callbacks.getScanIssues.return_value = []
+
+        ic = IssueChecker(state, callbacks)
+
+        return ic, state, callbacks
 
 class GenericMock(object):
     """

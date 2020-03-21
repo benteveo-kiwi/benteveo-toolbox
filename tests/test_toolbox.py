@@ -1,4 +1,4 @@
-from benteveo_toolbox import BurpExtender
+from benteveo_toolbox import BurpExtender, IssueChecker
 from burp import IBurpExtenderCallbacks, IExtensionHelpers
 from java.lang import String, IllegalArgumentException, UnsupportedOperationException
 from java.net import URL
@@ -24,10 +24,11 @@ class TestToolbox(BaseTestClass):
     """
     def testCanRunMainWithoutCrashing(self):
         be = BurpExtender()
-        mock = GenericMock()
-        be.registerExtenderCallbacks(mock)
+        callbacks = GenericMock()
+        callbacks.getScanIssues.return_value = []
+        be.registerExtenderCallbacks(callbacks)
 
-        self.assertEqual(mock.setExtensionName.call_count, 1)
+        self.assertEqual(callbacks.setExtensionName.call_count, 1)
 
     def testGenerateEndpointHash(self):
         etm, state, callbacks = self._cetm()
@@ -620,6 +621,62 @@ class TestToolbox(BaseTestClass):
         self.assertFalse(etm.isStaticResource('http://example.org/lel.unknown'))
         self.assertFalse(etm.isStaticResource('http://example.org/lel.aspx'))
 
+    def testIssueCheckerOnlyOnce(self):
+        ic, state, callbacks = self._ic()
+
+        state.scope_urls = ["http://example.org/"]
+
+        ic.reportIssue = GenericMock()
+
+        issue = GenericMock()
+        issue.url = URL("http://www.example.org/users")
+        issue.issueName = "SQL Injection"
+
+        callbacks.getScanIssues.return_value = [issue]
+
+        ic.run()
+        self.assertEquals(ic.reportIssue.call_count, 1)
+
+        ic.run()
+        self.assertEquals(ic.reportIssue.call_count, 1, "Should still be one because it's the same issue and it has already been reported.")
+
+    def testIssueCheckerTwice(self):
+        ic, state, callbacks = self._ic()
+
+        state.scope_urls = ["http://example.org/"]
+
+        ic.reportIssue = GenericMock()
+
+        issue = GenericMock()
+        issue.url = URL("http://www.example.org/users")
+        issue.issueName = "SQL Injection"
+
+        secondIssue = GenericMock()
+        secondIssue.url = URL("http://www.example.org/users")
+        secondIssue.issueName = "Remote Code Execution"
+
+        callbacks.getScanIssues.return_value = [issue]
+
+        ic.run()
+        self.assertEquals(ic.reportIssue.call_count, 1)
+
+        callbacks.getScanIssues.return_value = [issue, secondIssue]
+
+        ic.run()
+        self.assertEquals(ic.reportIssue.call_count, 2)
+
+    def testIssueCheckerOldReportedIssues(self):
+        state = GenericMock()
+        callbacks = GenericMock()
+
+        issue = GenericMock()
+        issue.url = URL("http://www.example.org/users")
+        issue.issueName = "SQL Injection"
+
+        callbacks.getScanIssues.return_value = [issue]
+
+        ic = IssueChecker(state, callbacks)
+        self.assertTrue(ic.reportedIssues['SQL Injection|http://www.example.org/users'])
 
 if __name__ == '__main__':
     unittest.main()

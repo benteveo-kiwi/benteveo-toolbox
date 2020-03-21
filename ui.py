@@ -376,6 +376,8 @@ class ToolboxCallbacks(NewThreadCaller):
         self.burpCallbacks.saveExtensionSetting("scopes", scopes)
 
         scope_urls = scopes.split("\n")
+        self.state.scope_urls = scope_urls
+
         for url in scope_urls:
             url = url.strip()
             if not url:
