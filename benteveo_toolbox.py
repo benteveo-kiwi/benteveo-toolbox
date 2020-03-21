@@ -136,6 +136,6 @@ class IssueChecker(TimerTask):
         name = issue.issueName
         url = issue.url.toString()
 
-        message = "New issue found. %s at %s." % (name, url)
+        message = "New issue found. '%s' at '%s'." % (name, url)
 
         utility.sendMessageToSlack(self.callbacks, message)

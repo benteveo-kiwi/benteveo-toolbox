@@ -599,6 +599,7 @@ class ToolboxCallbacks(NewThreadCaller):
         fuzzButton.setText("Fuzzing...")
 
         try:
+            sendMessageToSlack(self.burpCallbacks, "Scan started.")
             fuzzRunner = FuzzRunner(self.state, self.burpCallbacks, self.extensions)
             nbFuzzedTotal, nbExceptions = fuzzRunner.run()
         except ShutdownException:
