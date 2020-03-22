@@ -603,7 +603,6 @@ class TestToolbox(BaseTestClass):
 
             self.assertEquals(state.fuzzExecutorService.submit.call_count, 1)
             self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 0)
-            self.assertEquals(ui.sendMessageToSlack.call_count, 1)
 
     def testIsStaticResource(self):
         etm, state, callbacks = self._cetm()

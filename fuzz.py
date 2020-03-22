@@ -3,7 +3,7 @@ from implementations import ScannerInsertionPoint, ContextMenuInvocation
 from java.util.concurrent import Executors, ExecutionException
 from tables import NoResponseException
 from threading import Lock
-from utility import log, ShutdownException, resend_request_model, PythonFunctionRunnable
+from utility import log, ShutdownException, resend_request_model, PythonFunctionRunnable, sendMessageToSlack
 import java.lang.Exception
 import java.lang.NullPointerException
 import time
@@ -104,9 +104,10 @@ class FuzzRunner(object):
                 if future.isDone():
                     try:
                         future.get()
-                    except ExecutionException:
-                        log("Failed to fuzz %s" % endpoint.url)
+                    except ExecutionException as exc:
                         logging.error("Failure fuzzing %s" % endpoint.url, exc_info=True)
+                        sendMessageToSlack(self.callbacks, "Failure fuzzing %s, exception: %s" % (endpoint.url, exc.cause))
+
                         nbExceptions += 1
                         continue
 

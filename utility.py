@@ -230,21 +230,17 @@ def sendMessageToSlack(callbacks, message):
     """
     Sends a message to the Benteveo Kiwi slack channel.
 
-    Doesn't use burps APIs so the request is not registered by burp.
+    Makes use of Burp APIs which are not really designed for this kind of usage because there are incompatibilities between the SSL client that Jython uses and Slack services.
 
     Args:
         callbacks: the burp callbacks object. This is required in order to perform the request using burp's API.
         message: the message to send.
     """
-    body = "{'text':'%s'}" % message
+    body = "{'text':%s}" % json.dumps(message)
     contentLength = len(body)
 
     request = "POST /services/TEVNC7KU7/BTGDUCE6Q/Ic0Rw5eOxfQdAFMLhRPSYF2Y HTTP/1.1\r\nHost: hooks.slack.com\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s""" % (contentLength, body)
     callbacks.makeHttpRequest('hooks.slack.com', 443, True, String(request).getBytes())
-    # url = 'https://hooks.slack.com/services/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'
-    # params = {'text': message}
-    # req = urllib2.Request(url, headers = {"Content-Type": "application/json"}, data = json.dumps(params))
-    # urllib2.urlopen(req)
 
 class BurpCallWrapper(IBurpExtenderCallbacks, IExtensionHelpers):
     """

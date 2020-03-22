@@ -101,7 +101,8 @@ class IssueChecker(TimerTask):
         Args:
             issue: an instance of IScanIssue, as documented here: https://portswigger.net/burp/extender/api/burp/IScanIssue.html
         """
-        return issue.issueName + "|" + issue.url.toString()
+        hsh = issue.issueName + "|" + issue.url.toString()
+        return hsh
 
     def run(self):
         """
@@ -123,7 +124,7 @@ class IssueChecker(TimerTask):
                     self.reportedIssues[hsh] = True
 
         except:
-            # It's very important to not crash inside a timer, apparently.
+            # It's very important to not crash inside a timer.
             logging.error("Error in IssueChecker.", exc_info=True)
 
     def reportIssue(self, issue):
