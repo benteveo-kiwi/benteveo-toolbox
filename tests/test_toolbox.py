@@ -1,19 +1,20 @@
-from benteveo_toolbox import BurpExtender
-from burp import IBurpExtenderCallbacks, IExtensionHelpers, IScannerInsertionPoint
-from implementations import ScannerInsertionPoint
+from benteveo_toolbox import BurpExtender, IssueChecker
+from burp import IBurpExtenderCallbacks, IExtensionHelpers
 from java.lang import String, IllegalArgumentException, UnsupportedOperationException
 from java.net import URL
 from java.util import ArrayList
 from models import EndpointModel, RequestModel, ReplacementRuleModel
 from tables import EndpointTableModel, RequestTableModel, ReplacementRuleTableModel
-from ui import ToolboxCallbacks, STATUS_OK, STATUS_FAILED
 from tests import GenericMock, TestException, raise_exception, BaseTestClass
+from ui import ToolboxCallbacks, STATUS_OK, STATUS_FAILED
+from utility import resend_request_model
+import benteveo_toolbox
+import fuzz
 import math
 import operator
 import ui
 import unittest
 import utility
-import benteveo_toolbox
 
 utility.INSIDE_UNIT_TEST = True
 
@@ -23,10 +24,11 @@ class TestToolbox(BaseTestClass):
     """
     def testCanRunMainWithoutCrashing(self):
         be = BurpExtender()
-        mock = GenericMock()
-        be.registerExtenderCallbacks(mock)
+        callbacks = GenericMock()
+        callbacks.getScanIssues.return_value = []
+        be.registerExtenderCallbacks(callbacks)
 
-        self.assertEqual(mock.setExtensionName.call_count, 1)
+        self.assertEqual(callbacks.setExtensionName.call_count, 1)
 
     def testGenerateEndpointHash(self):
         etm, state, callbacks = self._cetm()
@@ -123,7 +125,7 @@ class TestToolbox(BaseTestClass):
         etm.clear()
 
         self.assertEqual(len(etm.endpoints), 0)
-        self.assertEqual(etm.fireTableDataChanged.call_count, 2) # one for add, one for clear.
+        self.assertEqual(etm.fireTableDataChanged.call_count, 1)
 
     def testClearWhenEmpty(self):
         etm, state, callbacks = self._cetm()
@@ -369,31 +371,32 @@ class TestToolbox(BaseTestClass):
                 self.assertEquals(state.executorService.submit.call_count, 2)
 
     def testResendRequestModel(self):
-        with self.mockUtilityCalls():
-            cb, state, burpCallbacks = self._ctc()
-            etm, _, _, endpointModel = self._cetm_populate()
+        cb, state, burpCallbacks = self._ctc()
+        etm, _, _, endpointModel = self._cetm_populate()
 
-            state.endpointTableModel = etm
-            state.endpointTableModel.update = GenericMock()
-            ui.apply_rules.return_value = (1, bytearray("lel"))
+        state.endpointTableModel = etm
+        state.endpointTableModel.update = GenericMock()
+        ui.apply_rules.return_value = (1, bytearray("lel"))
 
-            cb.resendRequestModel(endpointModel.requests[0])
+        resend_request_model(state, burpCallbacks, endpointModel.requests[0])
 
-            self.assertEquals(burpCallbacks.makeHttpRequest.call_count, 1)
-            self.assertEquals(state.endpointTableModel.update.call_count, 1)
+        self.assertEquals(burpCallbacks.makeHttpRequest.call_count, 1)
+        self.assertEquals(state.endpointTableModel.update.call_count, 1)
 
     def testResendRequestModelLogoutURL(self):
         with self.mockUtilityCalls():
             cb, state, burpCallbacks = self._ctc()
 
+            utility.log = GenericMock()
+
             request = GenericMock()
             request.analyzedRequest.url.path = "/logout"
 
-            cb.resendRequestModel(request)
+            utility.resend_request_model(state, burpCallbacks, request)
 
             self.assertEquals(burpCallbacks.makeHttpRequest.call_count, 0)
             self.assertEquals(state.endpointTableModel.update.call_count, 0)
-            self.assertEquals(ui.log.call_count, 1)
+            self.assertEquals(utility.log.call_count, 1)
 
     def testEndpointTableModelUpdate(self):
         etm, state, callbacks, endpointModel = self._cetm_populate()
@@ -402,7 +405,8 @@ class TestToolbox(BaseTestClass):
         newResponse = GenericMock()
         etm.update(requestModel, newResponse)
 
-        self.assertEquals(requestModel.repeatedHttpRequestResponse, newResponse)
+        self.assertEquals(callbacks.saveBuffersToTempFiles.call_args[0], newResponse)
+        self.assertEquals(requestModel.repeatedHttpRequestResponse, callbacks.saveBuffersToTempFiles.return_value)
         self.assertEquals(requestModel.repeated, True)
         self.assertEquals(requestModel.repeatedAnalyzedResponse, callbacks.helpers.analyzeResponse.return_value)
 
@@ -470,6 +474,8 @@ class TestToolbox(BaseTestClass):
             em = GenericMock()
             em.fuzzed = False
 
+            fuzz.resend_request_model = GenericMock()
+
             requestA = GenericMock()
 
             em.requests = [requestA]
@@ -483,61 +489,7 @@ class TestToolbox(BaseTestClass):
             except AttributeError:
                 pass
 
-            self.assertEquals(cb.resendRequestModel.call_count, 2)
-
-    def testClickFuzzMaxConcurrentRequests(self):
-        with self.mockUtilityCalls():
-            cb, state, burpCallbacks = self._ctc()
-
-            em = GenericMock()
-            em.fuzzed = False
-
-            state.perRequestExecutorService.submit.return_value.isDone = raise_exception
-
-            requestA = GenericMock()
-
-            em.requests = [requestA]
-            state.endpointTableModel.endpoints = {"GET|/l.ol": em,"GET|/lo<<l": em,"GET|/loOOl": em,"GET|/lJJol": em,"GET|/ZZZol": em,"GET|/loXXXl": em,"GET|/lasasCol": em,"GET|/lol1221": em,"GET|/lolASAS": em,"GET|/lddddol": em,"GET|/lolsss": em,"GET|/aaalol": em}
-            requestA.analyzedResponse.statusCode = 200
-            requestA.repeatedAnalyzedResponse.statusCode = 200
-
-            try:
-                cb.fuzzButtonClicked(GenericMock())
-            except TestException:
-                pass
-
-            self.assertEquals(state.perRequestExecutorService.submit.call_count, cb.maxConcurrentRequests)
-
-    def testClickFuzzMaxConcurrentRequestsOneMore(self):
-        with self.mockUtilityCalls():
-            cb, state, burpCallbacks = self._ctc()
-
-            em = GenericMock()
-            em.fuzzed = False
-
-            utility.nb_calls = 0
-            def return_true_once(*args, **kwargs):
-                if utility.nb_calls == 0:
-                    utility.nb_calls +=1
-                    return True
-                else:
-                    raise TestException()
-
-            state.perRequestExecutorService.submit.return_value.isDone = return_true_once
-
-            requestA = GenericMock()
-
-            em.requests = [requestA]
-            state.endpointTableModel.endpoints = {"GET|/l.ol": em,"GET|/lo<<l": em,"GET|/loOOl": em,"GET|/lJJol": em,"GET|/ZZZol": em,"GET|/loXXXl": em,"GET|/lasasCol": em,"GET|/lol1221": em,"GET|/lolASAS": em,"GET|/lddddol": em,"GET|/lolsss": em,"GET|/aaalol": em}
-            requestA.analyzedResponse.statusCode = 200
-            requestA.repeatedAnalyzedResponse.statusCode = 200
-
-            try:
-                cb.fuzzButtonClicked(GenericMock())
-            except TestException:
-                pass
-
-            self.assertEquals(state.perRequestExecutorService.submit.call_count, cb.maxConcurrentRequests + 1)
+            self.assertEquals(fuzz.resend_request_model.call_count, 2)
 
     def testClickFuzzOnlyIfSameStatusSame(self):
         with self.mockUtilityCalls():
@@ -559,28 +511,7 @@ class TestToolbox(BaseTestClass):
 
             cb.fuzzButtonClicked(GenericMock())
 
-            self.assertEquals(state.perRequestExecutorService.submit.call_count, 1)
-
-    def testFuzzRequestModel(self):
-        cb, state, burpCallbacks = self._ctc()
-
-        extension = GenericMock()
-        scanner = GenericMock()
-        extension.getScannerChecks.return_value = [scanner]
-        cb.extensions = [("scanner_name", extension)]
-        cb.fuzzRequestModel(GenericMock())
-
-        self.assertEquals(state.executorService.submit.call_count, 5)
-
-        state.executorService.submit.return_value.isDone = raise_exception
-
-        callsIsDone = False
-        try:
-            cb.fuzzRequestModel(GenericMock())
-        except TestException:
-            callsIsDone = True
-
-        self.assertTrue(callsIsDone, "Calls is done.")
+            self.assertEquals(state.fuzzExecutorService.submit.call_count, 1)
 
     def testPersistsMetadata(self):
         etm, state, callbacks = self._cetm()
@@ -623,7 +554,7 @@ class TestToolbox(BaseTestClass):
 
             cb.fuzzButtonClicked(GenericMock())
 
-            self.assertEquals(state.perRequestExecutorService.submit.call_count, 0)
+            self.assertEquals(state.fuzzExecutorService.submit.call_count, 0)
 
     def testMarksEndpointsAsFuzzed(self):
         with self.mockUtilityCalls():
@@ -641,7 +572,7 @@ class TestToolbox(BaseTestClass):
 
             cb.fuzzButtonClicked(GenericMock())
 
-            self.assertEquals(state.perRequestExecutorService.submit.call_count, 1)
+            self.assertEquals(state.fuzzExecutorService.submit.call_count, 1)
             self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 1)
 
     def testMarksEndpointsAsFuzzedOnlyIfReproducible(self):
@@ -670,223 +601,81 @@ class TestToolbox(BaseTestClass):
 
             cb.fuzzButtonClicked(GenericMock())
 
-            self.assertEquals(state.perRequestExecutorService.submit.call_count, 1)
+            self.assertEquals(state.fuzzExecutorService.submit.call_count, 1)
             self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 0)
-            self.assertEquals(ui.sendMessageToSlack.call_count, 1)
 
-    def testGetInsertionPoints(self):
-        cb, state, burpCallbacks = self._ctc()
+    def testIsStaticResource(self):
+        etm, state, callbacks = self._cetm()
 
-        request = GenericMock()
-        parameter = GenericMock()
-        parameter.name = "lol"
-        parameter.value = "lol"
-        parameter.type = 1
-        request.repeatedAnalyzedRequest.parameters = [parameter, parameter, parameter]
-        request.repeatedAnalyzedRequest.headers = [parameter, parameter, parameter] # gonna skip the first line in the header
+        self.assertTrue(etm.isStaticResource('http://example.org/lel.svg'))
+        self.assertTrue(etm.isStaticResource('http://example.org/lel.gif'))
+        self.assertTrue(etm.isStaticResource('http://example.org/lel.jar'))
+        self.assertTrue(etm.isStaticResource('http://example.org/lel.exe'))
+        self.assertTrue(etm.isStaticResource('http://example.org/lel.zip'))
+        self.assertTrue(etm.isStaticResource('http://example.org/lel.docx'))
 
-        insertionPoints = cb.getInsertionPoints(request, False)
-        self.assertEquals(len(insertionPoints), 5)
+        self.assertFalse(etm.isStaticResource('http://example.org/lel.php'))
+        self.assertFalse(etm.isStaticResource('http://example.org/lel.jsp'))
+        self.assertFalse(etm.isStaticResource('http://example.org/lel'))
+        self.assertFalse(etm.isStaticResource('http://example.org/lel.unknown'))
+        self.assertFalse(etm.isStaticResource('http://example.org/lel.aspx'))
 
-    def testGetInsertionPointsOnlyParameters(self):
-        cb, state, burpCallbacks = self._ctc()
+    def testIssueCheckerOnlyOnce(self):
+        ic, state, callbacks = self._ic()
 
-        request = GenericMock()
-        parameter = GenericMock()
-        parameter.name = "lol"
-        parameter.value = "lol"
-        parameter.type = 1
-        request.repeatedAnalyzedRequest.parameters = [parameter, parameter, parameter]
-        request.repeatedAnalyzedRequest.headers = [parameter, parameter, parameter] # gonna skip the first line in the header
+        state.scope_urls = ["http://example.org/"]
 
-        onlyParameters = True
-        insertionPoints = cb.getInsertionPoints(request, onlyParameters)
-        self.assertEquals(len(insertionPoints), 3)
+        ic.reportIssue = GenericMock()
 
-    def testGetInsertionPointsPath(self):
-        cb, state, burpCallbacks = self._ctc()
+        issue = GenericMock()
+        issue.url = URL("http://www.example.org/users")
+        issue.issueName = "SQL Injection"
 
-        headers = ArrayList()
-        headers.add("GET /folder1/folder1/file.php HTTP/1.1")
-        headers.add("Host: example.org")
+        callbacks.getScanIssues.return_value = [issue]
 
-        request = GenericMock()
-        request.repeatedAnalyzedRequest.parameters = []
-        request.repeatedAnalyzedRequest.headers = headers
+        ic.run()
+        self.assertEquals(ic.reportIssue.call_count, 1)
 
-        insertionPoints = cb.getPathInsertionPoints(request)
-        self.assertEquals(len(insertionPoints), 3)
-        self.assertEquals(insertionPoints[0].type, IScannerInsertionPoint.INS_URL_PATH_FOLDER)
-        self.assertEquals(insertionPoints[1].type, IScannerInsertionPoint.INS_URL_PATH_FOLDER)
-        self.assertEquals(insertionPoints[2].type, IScannerInsertionPoint.INS_URL_PATH_FILENAME)
+        ic.run()
+        self.assertEquals(ic.reportIssue.call_count, 1, "Should still be one because it's the same issue and it has already been reported.")
 
-    def testGetInsertionPointsPathQueryString(self):
-        cb, state, burpCallbacks = self._ctc()
+    def testIssueCheckerTwice(self):
+        ic, state, callbacks = self._ic()
 
-        headers = ArrayList()
-        headers.add("GET /folder1/folder1/file.php?lel=true&lala=1 HTTP/1.1")
-        headers.add("Host: example.org")
+        state.scope_urls = ["http://example.org/"]
 
-        request = GenericMock()
-        request.repeatedAnalyzedRequest.parameters = []
-        request.repeatedAnalyzedRequest.headers = headers
+        ic.reportIssue = GenericMock()
 
-        insertionPoints = cb.getPathInsertionPoints(request)
-        self.assertEquals(len(insertionPoints), 3)
-        self.assertEquals(insertionPoints[2].type, IScannerInsertionPoint.INS_URL_PATH_FILENAME)
-        self.assertEquals(insertionPoints[2].value, "file.php")
+        issue = GenericMock()
+        issue.url = URL("http://www.example.org/users")
+        issue.issueName = "SQL Injection"
 
-    def testBuildRequestPath(self):
-        cb, state, burpCallbacks = self._ctc()
+        secondIssue = GenericMock()
+        secondIssue.url = URL("http://www.example.org/users")
+        secondIssue.issueName = "Remote Code Execution"
 
-        firstLine = "GET /folder1/folder1/file.php HTTP/1.1"
-        secondLine = "Host: example.org"
+        callbacks.getScanIssues.return_value = [issue]
 
-        headers = ArrayList()
-        headers.add(firstLine)
-        headers.add(secondLine)
+        ic.run()
+        self.assertEquals(ic.reportIssue.call_count, 1)
 
+        callbacks.getScanIssues.return_value = [issue, secondIssue]
 
-        request = GenericMock()
-        request.repeatedAnalyzedRequest.parameters = []
-        request.repeatedAnalyzedRequest.headers = headers
-        request.repeatedHttpRequestResponse.request = String(firstLine + "\r\n" + secondLine + "\r\n").getBytes()
+        ic.run()
+        self.assertEquals(ic.reportIssue.call_count, 2)
 
-        insertionPoints = cb.getInsertionPoints(request, False)
-
-        insertionPoints[0].updateContentLength = lambda x: x
-        insertionPoints[1].updateContentLength = lambda x: x
-        insertionPoints[2].updateContentLength = lambda x: x
-
-        burpCallbacks.helpers.urlEncode.return_value = "LOLLOLLOL"
-        ret = insertionPoints[0].buildRequest(String("LOLLOLLOL").getBytes())
-
-        self.assertTrue(str(String(ret)).startswith("GET /LOLLOLLOL/folder1/file.php HTTP/1.1"))
-
-        ret = insertionPoints[1].buildRequest(String("LOLLOLLOL").getBytes())
-        self.assertTrue(str(String(ret)).startswith("GET /folder1/LOLLOLLOL/file.php HTTP/1.1"))
-
-        ret = insertionPoints[2].buildRequest(String("LOLLOLLOL").getBytes())
-        self.assertTrue(str(String(ret)).startswith("GET /folder1/folder1/LOLLOLLOL HTTP/1.1"))
-
-    def testBuildRequestJson(self):
+    def testIssueCheckerOldReportedIssues(self):
+        state = GenericMock()
         callbacks = GenericMock()
 
-        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: lelel\r\n\r\n{\"param\":\"value\"}\r\n").getBytes()
+        issue = GenericMock()
+        issue.url = URL("http://www.example.org/users")
+        issue.issueName = "SQL Injection"
 
-        callbacks.helpers.updateParameter.raise = UnsupportedOperationException
+        callbacks.getScanIssues.return_value = [issue]
 
-        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_JSON, 65, 70)
-        sip.updateContentLength = lambda x: x
-
-        ret = sip.buildRequest(String("lol").getBytes())
-        self.assertTrue('{"param":"lol"}' in str(String(ret)))
-
-        ret = sip.buildRequest(String("herecomethe\"quotes").getBytes())
-        self.assertTrue('{"param":"herecomethe\\"quotes"}' in str(String(ret)))
-
-    def testBuildRequestXml(self):
-        callbacks = GenericMock()
-
-        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: lelel\r\n\r\n<xml>lol</xml>\r\n").getBytes()
-
-        callbacks.helpers.updateParameter.raise = UnsupportedOperationException
-
-        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_XML, 60, 63)
-        sip.updateContentLength = lambda x: x
-
-        ret = sip.buildRequest(String("evil <awfafw ''\"").getBytes())
-
-        self.assertTrue("<xml>evil &lt;awfafw &apos;&apos;&quot;</xml>" in str(String(ret)))
-
-    def testBuildRequestXmlAttr(self):
-        callbacks = GenericMock()
-
-        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: lelel\r\n\r\n<xml a=\"lol\">whatever</xml>\r\n").getBytes()
-
-        callbacks.helpers.updateParameter.raise = UnsupportedOperationException
-
-        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_XML_ATTR, 63, 66)
-        sip.updateContentLength = lambda x: x
-
-        ret = sip.buildRequest(String("evil <awfafw ''\"").getBytes())
-
-        self.assertTrue("<xml a=\"evil &lt;awfafw &apos;&apos;&quot;\">whatever</xml>" in str(String(ret)))
-
-    def testBuildRequestJsonNumbers(self):
-        callbacks = GenericMock()
-
-        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: 16\r\n\r\n{\"param\":1234}\r\n").getBytes()
-
-        callbacks.helpers.updateParameter.raise = UnsupportedOperationException
-
-        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_JSON, 61, 65)
-        sip.updateContentLength = lambda x: x
-
-        ret = sip.buildRequest(String("lol").getBytes())
-        self.assertTrue('{"param":"lol"}' in str(String(ret)))
-
-        ret = sip.buildRequest(String("herecomethe\"quotes").getBytes())
-        self.assertTrue('{"param":"herecomethe\\"quotes"}' in str(String(ret)))
-
-    def testBuildRequestUpdatesContentLength(self):
-        callbacks = GenericMock()
-
-        request = String("POST / HTTP/1.1\r\nHost:lelele\r\nContent-length: 16\r\n\r\n{\"param\":1234}\r\n").getBytes()
-
-        callbacks.helpers.updateParameter.raise = UnsupportedOperationException
-
-        sip = ScannerInsertionPoint(callbacks, request, "name", "value", IScannerInsertionPoint.INS_PARAM_JSON, 61, 65)
-        sip.updateContentLength = GenericMock()
-
-        ret = sip.buildRequest(String("lol").getBytes())
-
-        self.assertEquals(sip.updateContentLength.call_count, 1)
-
-    def testGetInsertionPointsPathRoot(self):
-        cb, state, burpCallbacks = self._ctc()
-
-        headers = ArrayList()
-        headers.add("GET / HTTP/1.1")
-        headers.add("Host: example.org")
-        headers.add("Custom-header: example.org")
-
-        request = GenericMock()
-        request.repeatedAnalyzedRequest.parameters = []
-        request.repeatedAnalyzedRequest.headers = headers
-
-        insertionPoints = cb.getPathInsertionPoints(request)
-        self.assertEquals(len(insertionPoints), 0)
-
-    def testGetInsertionPointsHeaders(self):
-        cb, state, burpCallbacks = self._ctc()
-
-        headers = ArrayList()
-        headers.add("GET / HTTP/1.1")
-        headers.add("Host: example.org")
-        headers.add("Custom-header: LOL")
-
-        request = GenericMock()
-        request.repeatedAnalyzedRequest.parameters = []
-        request.repeatedAnalyzedRequest.headers = headers
-
-        insertionPoints = cb.getInsertionPoints(request, False)
-        self.assertEquals(len(insertionPoints), 2)
-        self.assertEquals(insertionPoints[0].type, IScannerInsertionPoint.INS_HEADER)
-        self.assertEquals(insertionPoints[0].baseValue, "example.org")
-        self.assertEquals(insertionPoints[1].type, IScannerInsertionPoint.INS_HEADER)
-        self.assertEquals(insertionPoints[1].baseValue, "LOL")
-
-    def testInsertionPointHeaderBuildRequest(self):
-        callbacks = GenericMock()
-
-        request = String("GET / HTTP/1.1\r\nHost: lelele\r\n\r\n").getBytes()
-
-        sip = ScannerInsertionPoint(callbacks, request, "Host", "lelele", IScannerInsertionPoint.INS_HEADER, 22, 28)
-        sip.updateContentLength = lambda x: x
-
-        ret = sip.buildRequest(String("lol").getBytes())
-        self.assertTrue("Host: lol" in str(String(ret)))
+        ic = IssueChecker(state, callbacks)
+        self.assertTrue(ic.reportedIssues['SQL Injection|http://www.example.org/users'])
 
 if __name__ == '__main__':
     unittest.main()

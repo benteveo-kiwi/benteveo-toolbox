@@ -16,6 +16,7 @@ import json
 import logging
 import sys
 import utility
+from urlparse import urlparse
 
 class NoResponseException(Exception):
     pass
@@ -137,38 +138,13 @@ class EndpointTableModel(AbstractTableModel):
         self.state = state
         self.callbacks = callbacks
         self.endpoints = OrderedDict()
-        self.MAX_REQUESTS_PER_ENDPOINT = 100
+        self.MAX_REQUESTS_PER_ENDPOINT = 20
 
         try:
             self.fuzzedMetadata = json.loads(self.callbacks.loadExtensionSetting('fuzzed-metadata'))
         except:
             log("Invalid fuzzedMetadata. Ignoring.")
             self.fuzzedMetadata = {}
-
-    def generateEndpointHash(self, analyzedRequest):
-        """
-        In this endpoint, a hash is a string that is used to group requests.
-
-        Requests that have the same URL and method should be grouped together to avoid duplication of testing effort. For example, "/users/1" and "/users/2" should both generate the same hash.
-
-        We do this by having a collection of regular expressions that are ran against each folder in every URL. If the regex matches, the folder is replaced in such a way that it becomes "/users/{ID}", which results in equal hashes for these kind of endpoints.
-
-        Args:
-            analyzedRequest: an analyzed request as returned by helpers.analyzeRequest()
-        """
-        url = analyzedRequest.url.toString().split("?")[0]
-        method = analyzedRequest.method
-
-        hash_url = []
-        for folder in url.split("/"):
-            if self.isId(folder):
-                hash_url.append("{ID}")
-            else:
-                hash_url.append(folder)
-
-        url = "/".join(hash_url)
-
-        return method + "|" + url, url, method
 
     def isId(self, folder):
         """
@@ -218,78 +194,6 @@ class EndpointTableModel(AbstractTableModel):
         """
         return self.endpoints.values()[rowIndex]
 
-    def add(self, httpRequestResponse):
-        """
-        Adds a http request to the internal state and fires the trigger for a reload of the table.
-
-        This is called by a click on the "refresh" button, which fetches requests from previous requests. We ignore requests without responses and OPTIONS requests as these don't tend to have IDOR.
-
-        Args:
-            httpRequestResponse: an HttpRequestResponse java object as returned by burp.
-
-        Return:
-            boolean: whether the request was added or not. It is not added if method is OPTIONS, if there is no response stored for the original request, or if there are too many requests for this endpoint already.
-        """
-
-        with self.lock:
-
-            analyzedRequest = self.callbacks.helpers.analyzeRequest(httpRequestResponse)
-
-            hash, url, method = self.generateEndpointHash(analyzedRequest)
-
-            if not httpRequestResponse.response:
-                return False
-
-            if method == "OPTIONS":
-                return False
-
-            try:
-                fuzzed = self.fuzzedMetadata[hash]
-            except KeyError:
-                fuzzed = False
-
-            if hash not in self.endpoints:
-                self.endpoints[hash] = EndpointModel(method, url, fuzzed)
-
-            if self.endpoints[hash].nb < self.MAX_REQUESTS_PER_ENDPOINT:
-                self.endpoints[hash].add(RequestModel(httpRequestResponse, self.callbacks))
-                added = True
-            else:
-                added = False
-
-            self.fireTableDataChanged() # this is used insted of fireTableDataChanged because of a crash when the table is sorted. If performance is too much of an issue, we can remove this out of here and make it the responsibility of the caller.
-
-            return added
-
-    def clear(self):
-        """
-        Gets called when the user clicks the Refresh button in order to clear the state.
-
-        Deletes all currently stored endpoints.
-        """
-
-        with self.lock:
-            length = len(self.endpoints)
-            if length == 0:
-                return
-
-            self.endpoints = OrderedDict()
-            self.fireTableDataChanged()
-
-
-    def selectRow(self, rowIndex):
-        """
-        Gets called when a hacker clicks on a row.
-
-        In the case of this particular model, a click triggers an event on the RequestsTableModel that causes it to display the requests that have been sent to this endpoint.
-
-        Args:
-            rowIndex: the row that was clicked.
-        """
-        endpoint = self.getEndpoint(rowIndex)
-        self.state.requestTableModel.updateRequests(endpoint.requests)
-        self.state.requestTableModel.selectRow(0)
-
     def getValueAt(self, rowIndex, columnIndex):
         """
         Gets the value for each individual cell.
@@ -314,9 +218,140 @@ class EndpointTableModel(AbstractTableModel):
         elif columnIndex == 6:
             return endpointModel.fuzzed
 
+    def getColumnClass(self, columnIndex):
+        """
+        Get column class. Gets called by swing to determine sorting.
+
+        Args:
+            columnIndex: the columnIndex to determine the class for.
+        """
+        if columnIndex in [2, 3, 4]:
+            return Integer(0).class
+        if columnIndex in [5, 6]:
+            return Boolean(True).class
+        else:
+            return String("").class
+
+    def add(self, httpRequestResponse):
+        """
+        Adds a http request to the internal state. Note that this method does not trigger a reload of the table. This should be done by the caller to this function once all httpRequestResponses have been added.
+
+        This is called by a click on the "refresh" button, which fetches requests from previous requests. We ignore requests without responses and OPTIONS requests as these don't tend to have IDOR/Fuzzable bugs.
+
+        Args:
+            httpRequestResponse: an HttpRequestResponse java object as returned by burp. We'll store it into a file for reduced RAM usage using `IBurpExtenderCallbacks.saveBuffersToTempFiles()`.
+
+        Return:
+            boolean: whether the request was added or not. It is not added if method is OPTIONS, if there is no response stored for the original request, or if there are too many requests for this endpoint already.
+        """
+
+        with self.lock:
+
+            analyzedRequest = self.callbacks.helpers.analyzeRequest(httpRequestResponse)
+            httpRequestResponse = self.callbacks.saveBuffersToTempFiles(httpRequestResponse)
+
+            hash, url, method = self.generateEndpointHash(analyzedRequest)
+
+            if self.isStaticResource(url):
+                return False
+
+            if not httpRequestResponse.response:
+                return False
+
+            if method == "OPTIONS":
+                return False
+
+            try:
+                fuzzed = self.fuzzedMetadata[hash]
+            except KeyError:
+                fuzzed = False
+
+            if hash not in self.endpoints:
+                self.endpoints[hash] = EndpointModel(method, url, fuzzed)
+
+            if self.endpoints[hash].nb < self.MAX_REQUESTS_PER_ENDPOINT:
+                self.endpoints[hash].add(RequestModel(httpRequestResponse, self.callbacks))
+                added = True
+            else:
+                added = False
+
+            return added
+
+    def isStaticResource(self, url):
+        """
+        Determines whether this URL belongs to a static resource by analysing the file extension.
+
+        Args:
+            url: the URL of the request, without a query string, and after processing by generateEndpointHash.
+
+        Return:
+            bool: whether the resource is static and should be ignored.
+        """
+
+        ignore_exts = 'js,gif,jpg,png,css,svg,woff,woff2,ttf,jpeg,ico,doc,docx,exe,pdf,xls,pkg,jar,zip,tar.gz,xlsx'.split(',')
+
+        parsed = urlparse(url)
+        extension = parsed.path.split('.')[-1]
+
+        return extension in ignore_exts
+
+    def generateEndpointHash(self, analyzedRequest):
+        """
+        In this endpoint, a hash is a string that is used to group requests.
+
+        Requests that have the same URL and method should be grouped together to avoid duplication of testing effort. For example, "/users/1" and "/users/2" should both generate the same hash.
+
+        We do this by having a collection of regular expressions that are ran against each folder in every URL. If the regex matches, the folder is replaced in such a way that it becomes "/users/{ID}", which results in equal hashes for these kind of endpoints.
+
+        Args:
+            analyzedRequest: an analyzed request as returned by helpers.analyzeRequest()
+        """
+        url = analyzedRequest.url.toString().split("?")[0]
+        method = analyzedRequest.method
+
+        hash_url = []
+        for folder in url.split("/"):
+            if self.isId(folder):
+                hash_url.append("{ID}")
+            else:
+                hash_url.append(folder)
+
+        url = "/".join(hash_url)
+
+        return method + "|" + url, url, method
+
+    def clear(self):
+        """
+        Gets called when the user clicks the Refresh button in order to clear the state.
+
+        Deletes all currently stored endpoints.
+        """
+
+        with self.lock:
+            length = len(self.endpoints)
+            if length == 0:
+                return
+
+            self.endpoints.clear()
+            self.fireTableDataChanged()
+
+
+    def selectRow(self, rowIndex):
+        """
+        Gets called when a hacker clicks on a row.
+
+        In the case of this particular model, a click triggers an event on the RequestsTableModel that causes it to display the requests that have been sent to this endpoint.
+
+        Args:
+            rowIndex: the row that was clicked.
+        """
+        endpoint = self.getEndpoint(rowIndex)
+        self.state.requestTableModel.updateRequests(endpoint.requests)
+        self.state.requestTableModel.selectRow(0)
+
     def update(self, requestModel, httpRequestResponse):
         """
-        Allows for new data to be stored regarding our already stored requests.
+        Allows for new data to be stored regarding our already stored requests. They are persisted to disk for reduced RAM usage.
 
         In particular, this method is called when requests are repeated, and new information is stored regarding those responses, such as the status code or the response length.
 
@@ -333,26 +368,14 @@ class EndpointTableModel(AbstractTableModel):
                 log(msg)
                 raise NoResponseException(msg)
 
+            httpRequestResponse = self.callbacks.saveBuffersToTempFiles(httpRequestResponse)
+
             requestModel.repeatedHttpRequestResponse = httpRequestResponse
             requestModel.repeatedAnalyzedResponse = self.callbacks.helpers.analyzeResponse(httpRequestResponse.response)
             requestModel.repeatedAnalyzedRequest = self.callbacks.helpers.analyzeRequest(httpRequestResponse.request)
             requestModel.repeated = True
 
             self.fireTableDataChanged()
-
-    def getColumnClass(self, columnIndex):
-        """
-        Get column class. Gets called by swing to determine sorting.
-
-        Args:
-            columnIndex: the columnIndex to determine the class for.
-        """
-        if columnIndex in [2, 3, 4]:
-            return Integer(0).class
-        if columnIndex in [5, 6]:
-            return Boolean(True).class
-        else:
-            return String("").class
 
     def setFuzzed(self, endpointModel, fuzzed):
         """

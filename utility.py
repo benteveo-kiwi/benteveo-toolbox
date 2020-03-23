@@ -1,16 +1,22 @@
 from burp import IBurpExtenderCallbacks, IExtensionHelpers
+from java.lang import Runnable, String
 from java.util import ArrayList
 from java.util import Arrays
+import functools
 import importlib
 import json
 import logging
 import re
 import string
 import sys
+import time
 import urllib2
 
-# Logger for writing to stdout.
-STDOUT_LOGGER = None
+# Whether we are running inside a unit test.
+INSIDE_UNIT_TEST = False
+
+# Application logger.
+logger = None
 
 # Constants for the add replacement form.
 REPLACE_HEADER_NAME = "Replace by header name"
@@ -25,6 +31,15 @@ regex = [
 ]
 
 class NoSuchHeaderException(Exception):
+    """
+    Raised when a header is required to be replaced but does not exist.
+    """
+    pass
+
+class ShutdownException(Exception):
+    """
+    Raised on threads to cause a failure that will trigger the thread to naturally die.
+    """
     pass
 
 def apply_rules(callbacks, rules, request):
@@ -124,48 +139,108 @@ def get_header(callbacks, request, header_name):
 
     raise NoSuchHeaderException("Header not found.")
 
+def resend_request_model(state, callbacks, request):
+    """
+    Resends a request model and update the RequestModel object with the new response.
+
+    Args:
+        state: the global state object.
+        callbacks: the burp callbacks object.
+        request: the RequestModel to resend.
+    """
+    target = request.httpRequestResponse.httpService
+
+    path = request.analyzedRequest.url.path
+    if "logout" in path:
+        log("Ignoring request to %s to avoid invalidating the session." % path)
+        return
+
+    nbModified, modifiedRequest = apply_rules(callbacks,
+                                            state.replacementRuleTableModel.rules,
+                                            request.httpRequestResponse.request)
+    if nbModified == 0:
+        log("Warning: Request for '%s' endpoint was not modified." % path)
+
+    newResponse = callbacks.makeHttpRequest(target, modifiedRequest)
+    state.endpointTableModel.update(request, newResponse)
+
 def setupLogging(logLevel=None):
+    """
+    Configure logging for this application.
+
+    Args:
+        logLevel: the logLevel to use for this run.
+    """
 
     if not logLevel:
         logLevel = logging.DEBUG
 
     format = '[%(levelname)s %(asctime)s]: %(message)s'
+
     logging.basicConfig(format=format, level=logLevel, stream=sys.stderr)
 
-    handler = logging.StreamHandler(sys.stdout)
+    global logger
+
+    handler = logging.StreamHandler(sys.stderr)
     handler.setLevel(logLevel)
     formatter = logging.Formatter(format)
     handler.setFormatter(formatter)
 
-    global STDOUT_LOGGER
-    STDOUT_LOGGER = logging.getLogger("stdoutLogger")
-    STDOUT_LOGGER.propagate = False
-    STDOUT_LOGGER.addHandler(handler)
+    logger = logging.getLogger("benteveo-toolbox")
+    logger.propagate = False
+    logger.addHandler(handler)
 
 def log(message):
     """
-    Writes a log to Burp's stdout logging.
-
-    This is a simple wrapper around print in case we want to do something more fancy in the future.
+    Logs an INFO message.
 
     Args:
         Message to print.
     """
-    STDOUT_LOGGER.info(message)
+    logger.info(message)
 
-def sendMessageToSlack(message):
+class LogDecorator(object):
+    """
+    A debugging decorator that records function calls and arguments.
+    """
+    def __init__(self):
+        """
+        Main constructor
+        """
+        self.logger = logging.getLogger('benteveo-toolbox')
+
+    def __call__(self, fn):
+        """
+        Main wrapper. For more information see https://dev.to/mandrewcito/a-tiny-python-log-decorator-1o5m
+        """
+        @functools.wraps(fn)
+        def decorated(*args, **kwargs):
+            try:
+                self.logger.debug("{0} - {1} - {2}".format(fn.__name__, args, kwargs))
+                result = fn(*args, **kwargs)
+                self.logger.debug("{0} = {1}".format(fn.__name__, result))
+                return result
+            except Exception as ex:
+                self.logger.debug("Exception {0}".format(ex))
+                raise ex
+            return result
+        return decorated
+
+def sendMessageToSlack(callbacks, message):
     """
     Sends a message to the Benteveo Kiwi slack channel.
 
-    Doesn't use burps APIs so the request is not registered by burp.
+    Makes use of Burp APIs which are not really designed for this kind of usage because there are incompatibilities between the SSL client that Jython uses and Slack services.
 
     Args:
+        callbacks: the burp callbacks object. This is required in order to perform the request using burp's API.
         message: the message to send.
     """
-    url = 'https://hooks.slack.com/services/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'
-    params = {'text': message}
-    req = urllib2.Request(url, headers = {"Content-Type": "application/json"}, data = json.dumps(params))
-    urllib2.urlopen(req)
+    body = "{'text':%s}" % json.dumps(message)
+    contentLength = len(body)
+
+    request = "POST /services/TEVNC7KU7/BTGDUCE6Q/Ic0Rw5eOxfQdAFMLhRPSYF2Y HTTP/1.1\r\nHost: hooks.slack.com\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s""" % (contentLength, body)
+    callbacks.makeHttpRequest('hooks.slack.com', 443, True, String(request).getBytes())
 
 class BurpCallWrapper(IBurpExtenderCallbacks, IExtensionHelpers):
     """
@@ -261,6 +336,37 @@ class BurpExtension(object):
     def getContextMenuFactories(self):
         return self.getSimpleCalls('registerContextMenuFactory')
 
+
+class PythonFunctionRunnable(Runnable):
+    """
+    A python implementation of Runnable.
+    """
+    def __init__(self, method, args=[], kwargs={}):
+        """
+        Stores these variables for when the run() method is called.
+
+        Args:
+            method: the method to call
+            args: args to pass
+            kwargs: kwargs to pass
+        """
+        self.method = method
+        self.args = args
+        self.kwargs = kwargs
+
+    def run(self):
+        """
+        Method that gets called by the new thread.
+        """
+        try:
+            self.method(*self.args, **self.kwargs)
+        except ShutdownException:
+            log("Thread shutting down")
+            raise
+        except:
+            logging.error("Exception in thread", exc_info=True)
+            raise
+
 def getClass(className):
     """
     Given a class name, it gets a reference to it that can later be instantiated.
@@ -298,3 +404,21 @@ def importBurpExtension(jarFile, burpExtenderClass, callbacks):
     burpExtender.registerExtenderCallbacks(callbacksWrapper)
 
     return BurpExtension(callbacksWrapper)
+
+def sleep(state, sleepTime):
+    """
+    Sleeps for a certain time. Checks for state.shutdown and if it is true raises an unhandled exception that crashes the thread. When inside a test, does nothing.
+
+    Args:
+        state: the state object.
+        sleepTime: the time in seconds.
+    """
+
+    if INSIDE_UNIT_TEST:
+        return
+
+    if state.shutdown:
+        log("Thread shutting down.")
+        raise ShutdownException()
+
+    time.sleep(sleepTime)
