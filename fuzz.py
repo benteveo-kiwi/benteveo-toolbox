@@ -46,6 +46,7 @@ class FuzzRunner(object):
         nbExceptions = 0
         for key in endpoints:
             endpoint = endpoints[key]
+            nbExceptions += self.checkMaxConcurrentRequests(futures, 10) # Only work on some requests at a time. This prevents a memory leak.
 
             if endpointsNotReproducibleCount >= 10:
                 log("10 endpoints in a row not reproducible.")
