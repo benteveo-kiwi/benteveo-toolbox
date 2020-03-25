@@ -31,7 +31,7 @@ class BurpExtender(IBurpExtender):
 
         utility.setupLogging()
 
-        utility.log("Loaded Benteveo Toolbox v0.2.0")
+        utility.log("Loaded Benteveo Toolbox v0.2.1")
 
         state = State()
 
