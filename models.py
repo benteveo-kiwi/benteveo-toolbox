@@ -137,6 +137,9 @@ class RequestModel(object):
         Returns:
             boolean: true if the request is reproducible.
         """
+        if not self.repeatedAnalyzedResponse:
+            return False
+
         return self.analyzedResponse.statusCode == self.repeatedAnalyzedResponse.statusCode
 
 class ReplacementRuleModel():
