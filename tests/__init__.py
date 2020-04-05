@@ -160,6 +160,11 @@ class BaseTestClass(unittest.TestCase):
         cb = ToolboxCallbacks(state, burpCallbacks)
         cb.sleep = GenericMock()
 
+        extension = GenericMock()
+        scanner = GenericMock()
+        extension.getScannerChecks.return_value = [scanner]
+        cb.extensions = [("scanner_name", extension)]
+
         return cb, state, burpCallbacks
 
     def _crrtm(self):

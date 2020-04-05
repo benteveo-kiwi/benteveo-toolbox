@@ -46,7 +46,7 @@ class FuzzRunner(object):
         nbExceptions = 0
         for key in endpoints:
             endpoint = endpoints[key]
-            nbExceptions += self.checkMaxConcurrentRequests(futures, 10) # Only work on some requests at a time. This prevents a memory leak.
+            nbExceptions += self.checkMaxConcurrentRequests(futures, 100) # Only work on some futures at a time. This prevents a memory leak.
 
             if endpointsNotReproducibleCount >= 10:
                 log("10 endpoints in a row not reproducible.")
@@ -70,8 +70,9 @@ class FuzzRunner(object):
                     endpointsNotReproducibleCount = 0
                     nbFuzzedTotal += 1
 
-                    runnable = PythonFunctionRunnable(self.fuzzRequestModel, args=[request])
-                    futures.append((endpoint, request, self.state.fuzzExecutorService.submit(runnable)))
+                    frm_futures = self.fuzzRequestModel(request)
+                    for future in frm_futures:
+                        futures.append((endpoint, request, future))
 
                     fuzzed = True
                     break
@@ -86,7 +87,7 @@ class FuzzRunner(object):
 
     def checkMaxConcurrentRequests(self, futures, maxRequests):
         """
-        Blocking function that waits until we can make more requests.
+        Blocking function that waits until we can add more futures.
 
         It is in charge of marking requests as fuzzed once completed.
 
@@ -153,7 +154,7 @@ class FuzzRunner(object):
 
                 for insertionPoint in insertionPoints:
                     runnable = PythonFunctionRunnable(self.doActiveScan, args=[activeScanner, request.repeatedHttpRequestResponse, insertionPoint])
-                    futures.append(self.state.executorService.submit(runnable))
+                    futures.append(self.state.fuzzExecutorService.submit(runnable))
 
             for factory in extension.getContextMenuFactories():
                 if name == "paramminer":
@@ -161,13 +162,7 @@ class FuzzRunner(object):
                     for menuItem in menuItems:
                         menuItem.doClick() # trigger "Guess headers/parameters/JSON!" functionality.
 
-        while len(futures) > 0:
-            utility.sleep(self.state, 1)
-
-            for future in futures:
-                if future.isDone():
-                    future.get()
-                    futures.remove(future)
+        return futures
 
     def doActiveScan(self, scanner, httpRequestResponse, insertionPoint):
         """

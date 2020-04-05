@@ -489,7 +489,7 @@ class TestToolbox(BaseTestClass):
             except AttributeError:
                 pass
 
-            self.assertEquals(fuzz.resend_request_model.call_count, 2)
+            self.assertEquals(fuzz.resend_request_model.call_count, 6)
 
     def testClickFuzzOnlyIfSameStatusSame(self):
         with self.mockUtilityCalls():
@@ -511,7 +511,7 @@ class TestToolbox(BaseTestClass):
 
             cb.fuzzButtonClicked(GenericMock())
 
-            self.assertEquals(state.fuzzExecutorService.submit.call_count, 1)
+            self.assertEquals(state.fuzzExecutorService.submit.call_count, 5)
 
     def testPersistsMetadata(self):
         etm, state, callbacks = self._cetm()
@@ -572,8 +572,8 @@ class TestToolbox(BaseTestClass):
 
             cb.fuzzButtonClicked(GenericMock())
 
-            self.assertEquals(state.fuzzExecutorService.submit.call_count, 1)
-            self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 1)
+            self.assertEquals(state.fuzzExecutorService.submit.call_count, 5)
+            self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 1) # should only call one time once all parameters for an individual request have been processed. :( We need to fix this failure prior to doing another release.
 
     def testMarksEndpointsAsFuzzedOnlyIfReproducible(self):
         with self.mockUtilityCalls():
@@ -601,7 +601,7 @@ class TestToolbox(BaseTestClass):
 
             cb.fuzzButtonClicked(GenericMock())
 
-            self.assertEquals(state.fuzzExecutorService.submit.call_count, 1)
+            self.assertEquals(state.fuzzExecutorService.submit.call_count, 5)
             self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 0)
 
     def testIsStaticResource(self):
