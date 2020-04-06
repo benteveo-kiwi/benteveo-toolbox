@@ -46,7 +46,7 @@ class FuzzRunner(object):
         nbExceptions = 0
         for key in endpoints:
             endpoint = endpoints[key]
-            nbExceptions += self.checkMaxConcurrentRequests(futures, 100) # Only work on some futures at a time. This prevents a memory leak.
+            nbExceptions += self.checkMaxConcurrentRequests(futures, 10) # Only work on some futures at a time. This prevents a memory leak.
 
             if endpointsNotReproducibleCount >= 10:
                 log("10 endpoints in a row not reproducible.")
@@ -71,8 +71,7 @@ class FuzzRunner(object):
                     nbFuzzedTotal += 1
 
                     frm_futures = self.fuzzRequestModel(request)
-                    for future in frm_futures:
-                        futures.append((endpoint, request, future))
+                    futures.append((endpoint, request, frm_futures))
 
                     fuzzed = True
                     break
@@ -102,21 +101,26 @@ class FuzzRunner(object):
         while len(futures) > maxRequests:
             utility.sleep(self.state, 0.5)
             for tuple in futures:
-                endpoint, request, future = tuple
-                if future.isDone():
-                    try:
-                        future.get()
-                    except ExecutionException as exc:
-                        logging.error("Failure fuzzing %s" % endpoint.url, exc_info=True)
-                        sendMessageToSlack(self.callbacks, "Failure fuzzing %s, exception: %s" % (endpoint.url, exc.cause))
+                endpoint, request, frm_futures = tuple
+                request_done = False
+                for future in frm_futures:
+                    if future.isDone():
+                        try:
+                            future.get()
+                        except ExecutionException as exc:
+                            logging.error("Failure fuzzing %s" % endpoint.url, exc_info=True)
+                            sendMessageToSlack(self.callbacks, "Failure fuzzing %s, exception: %s" % (endpoint.url, exc.cause))
 
-                        nbExceptions += 1
-                        continue
+                            nbExceptions += 1
 
+                        frm_futures.remove(future)
+
+                    if len(frm_futures) == 0:
+                        request_done = True
+
+                if request_done:
                     futures.remove(tuple)
-
                     resend_request_model(self.state, self.callbacks, request)
-
                     if request.wasReproducible():
                         self.state.endpointTableModel.setFuzzed(endpoint, True)
                         log("Finished fuzzing %s" % endpoint.url)
