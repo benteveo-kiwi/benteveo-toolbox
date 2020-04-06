@@ -268,3 +268,7 @@ class TestFuzz(BaseTestClass):
         state.fuzzExecutorService.submit.return_value.isDone = raise_exception
 
         self.assertTrue(extension.getContextMenuFactories.call_count, 5)
+
+
+    def testCheckMaxConcurrentRequests(self):
+        self.assertTrue(False)

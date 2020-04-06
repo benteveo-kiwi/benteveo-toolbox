@@ -573,7 +573,7 @@ class TestToolbox(BaseTestClass):
             cb.fuzzButtonClicked(GenericMock())
 
             self.assertEquals(state.fuzzExecutorService.submit.call_count, 5)
-            self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 1) # should only call one time once all parameters for an individual request have been processed. :( We need to fix this failure prior to doing another release.
+            self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 1)
 
     def testMarksEndpointsAsFuzzedOnlyIfReproducible(self):
         with self.mockUtilityCalls():
@@ -601,7 +601,35 @@ class TestToolbox(BaseTestClass):
 
             cb.fuzzButtonClicked(GenericMock())
 
-            self.assertEquals(state.fuzzExecutorService.submit.call_count, 5)
+            self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 0)
+
+    def testMarksEndpointsAsFuzzedOnlyIfCheckRequestReproducible(self):
+        self.assertTrue(False)
+        with self.mockUtilityCalls():
+            cb, state, burpCallbacks = self._ctc()
+
+            em = GenericMock()
+            em.fuzzed = False
+            em.setFuzzed = GenericMock()
+            requestA = GenericMock()
+
+            utility.counter = 0
+            def wasReproducible():
+                if utility.counter == 0:
+                    utility.counter += 1
+                    return True
+                else:
+                    return False
+
+            requestA.wasReproducible = wasReproducible
+
+            em.requests = [requestA]
+            state.endpointTableModel.endpoints = {"GET|/lol": em}
+            requestA.analyzedResponse.statusCode = 200
+            requestA.repeatedAnalyzedResponse.statusCode = 200
+
+            cb.fuzzButtonClicked(GenericMock())
+
             self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 0)
 
     def testIsStaticResource(self):
