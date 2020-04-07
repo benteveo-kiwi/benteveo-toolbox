@@ -3,7 +3,7 @@ from implementations import ScannerInsertionPoint, ContextMenuInvocation
 from java.util.concurrent import Executors, ExecutionException
 from tables import NoResponseException
 from threading import Lock
-from utility import log, ShutdownException, resend_request_model, PythonFunctionRunnable, sendMessageToSlack
+from utility import log, ShutdownException, resend_request_model, PythonFunctionRunnable, sendMessageToSlack, resend_session_check
 import java.lang.Exception
 import java.lang.NullPointerException
 import time
@@ -121,11 +121,18 @@ class FuzzRunner(object):
                 if request_done:
                     futures.remove(tuple)
                     resend_request_model(self.state, self.callbacks, request)
-                    if request.wasReproducible():
+
+                    textAreaText = self.state.sessionCheckTextarea.text
+                    sessionCheckReproducible, _ = resend_session_check(self.state, self.callbacks, textAreaText)
+
+                    if request.wasReproducible() and sessionCheckReproducible:
                         self.state.endpointTableModel.setFuzzed(endpoint, True)
                         log("Finished fuzzing %s" % endpoint.url)
-                    else:
+                    elif not request.wasReproducible():
                         log("Fuzzing complete but did not mark as fuzzed because no longer reproducible at %s." % endpoint.url)
+                    else:
+                        log("Fuzzing complete but did not mark as fuzzed because the session check request is no longer reproducible.")
+                        raise Exception("Base request no longer reproducible.")
 
                     break
 
@@ -151,6 +158,7 @@ class FuzzRunner(object):
             for activeScanner in extension.getScannerChecks():
                 if name == "shelling":
                     onlyParameters = True
+                    continue # disable shelling for now.
                 else:
                     onlyParameters = False
 

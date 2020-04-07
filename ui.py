@@ -30,7 +30,7 @@ from javax.swing import JTextField
 from javax.swing import SwingUtilities
 from tables import Table, CellHighlighterRenderer, TableMouseAdapter
 from threading import Lock
-from utility import apply_rules, get_header, log, sendMessageToSlack, importBurpExtension, LogDecorator, PythonFunctionRunnable, resend_request_model
+from utility import apply_rules, log, sendMessageToSlack, importBurpExtension, LogDecorator, PythonFunctionRunnable, resend_request_model, resend_session_check, get_header
 from utility import REPLACE_HEADER_NAME, NoSuchHeaderException, ShutdownException
 import jarray
 import logging
@@ -515,26 +515,14 @@ class ToolboxCallbacks(NewThreadCaller):
 
         self.burpCallbacks.saveExtensionSetting("scopeCheckRequest", textAreaText)
 
-        baseRequestString = re.sub(r"(?!\r)\n", "\r\n", textAreaText)
-        baseRequest = self.burpCallbacks.helpers.stringToBytes(baseRequestString)
-
         try:
-            hostHeader = get_header(self.burpCallbacks, baseRequest, "host")
+            checkOk, analyzedResponse = resend_session_check(self.state, self.burpCallbacks, textAreaText)
         except NoSuchHeaderException:
             self.messageDialog("Check request failed: no Host header present in session check request.")
             self.checkButtonSetFail(checkButton)
             return
 
-        target = self.burpCallbacks.helpers.buildHttpService(hostHeader, 443, "https")
-
-        nbModified, modifiedRequest = apply_rules(self.burpCallbacks, self.state.replacementRuleTableModel.rules, baseRequest)
-        if nbModified == 0:
-            log("Warning: No modifications made to check request.")
-
-        response = self.burpCallbacks.makeHttpRequest(target, modifiedRequest)
-        analyzedResponse = self.burpCallbacks.helpers.analyzeResponse(response.response)
-
-        if analyzedResponse.statusCode == 200:
+        if checkOk:
             checkButton.setText("Check: OK")
             self.state.status = STATUS_OK
         else:

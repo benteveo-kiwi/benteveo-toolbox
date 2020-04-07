@@ -310,8 +310,8 @@ class TestToolbox(BaseTestClass):
                 cb, state, burpCallbacks = self._ctc()
                 cb.checkButtonClicked(GenericMock())
 
-                self.assertEquals(ui.apply_rules.call_count, 1)
-                self.assertEquals(ui.get_header.call_count, 1)
+                self.assertEquals(utility.apply_rules.call_count, 1)
+                self.assertEquals(utility.get_header.call_count, 1)
 
     def testGetHeader(self):
         testRequest = "whatever"
