@@ -48,11 +48,6 @@ class FuzzRunner(object):
             endpoint = endpoints[key]
             nbExceptions += self.checkMaxConcurrentRequests(futures, 10) # Only work on some futures at a time. This prevents a memory leak.
 
-            if endpointsNotReproducibleCount >= 10:
-                log("10 endpoints in a row not reproducible.")
-                sendMessageToSlack(self.callbacks, "10 endpoints in a row not reproducible, bailing from the current scan.")
-                break
-
             if endpoint.fuzzed:
                 continue
 
