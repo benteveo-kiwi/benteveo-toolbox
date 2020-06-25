@@ -187,6 +187,11 @@ class FuzzRunner(object):
             utility.sleep(self.state, 1)
             try:
                 issues = scanner.doActiveScan(httpRequestResponse, insertionPoint)
+                with self.lock:
+                    if issues:
+                        for issue in issues:
+                            self.callbacks.addScanIssue(issue)
+
                 break
             except (java.lang.Exception, java.lang.NullPointerException):
                 retries -= 1
@@ -194,11 +199,6 @@ class FuzzRunner(object):
             except:
                 retries -= 1
                 logging.error("Exception while fuzzing individual param, retrying it. %d retries left." % retries, exc_info=True)
-
-        with self.lock:
-            if issues:
-                for issue in issues:
-                    self.callbacks.addScanIssue(issue)
 
 class InsertionPointsGenerator(object):
     """
