@@ -55,14 +55,16 @@ class BaseTestClass(unittest.TestCase):
         """
         Mocks calls to the utility module for ease of testability. Note that it only gets mocked in the "ui.py" file.
         """
+
+        # Preserve previous values.
         apply_rules = ui.apply_rules
         utility_apply_rules = utility.apply_rules
         utility_get_header = utility.get_header
-        print utility_get_header
         get_header = ui.get_header
         log = ui.log
         sendMessageToSlack = ui.sendMessageToSlack
 
+        # Replace with mocks.
         ui.apply_rules = GenericMock()
         utility.apply_rules = GenericMock()
         utility.get_header = GenericMock()
@@ -70,11 +72,13 @@ class BaseTestClass(unittest.TestCase):
         ui.log = GenericMock()
         ui.sendMessageToSlack = GenericMock()
 
+        # Set return values.
         ui.apply_rules.return_value = (False, None)
         utility.apply_rules.return_value = (False, None)
 
         yield
 
+        # Restore previous values.
         ui.apply_rules = apply_rules
         utility.apply_rules = utility_apply_rules
         utility.get_header = utility_get_header

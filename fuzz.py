@@ -10,6 +10,9 @@ import time
 import utility
 import logging
 
+class SessionCheckNotReproducibleException(Exception):
+    pass
+
 class FuzzRunner(object):
     """
     Main fuzz runner class. In charge of interacting with the extensions
@@ -127,7 +130,7 @@ class FuzzRunner(object):
                         log("Fuzzing complete but did not mark as fuzzed because no longer reproducible at %s." % endpoint.url)
                     else:
                         log("Fuzzing complete but did not mark as fuzzed because the session check request is no longer reproducible.")
-                        raise Exception("Base request no longer reproducible.")
+                        raise SessionCheckNotReproducibleException("Base request no longer reproducible.")
 
                     break
 
@@ -153,7 +156,6 @@ class FuzzRunner(object):
             for activeScanner in extension.getScannerChecks():
                 if name == "shelling":
                     onlyParameters = True
-                    continue # disable shelling for now.
                 else:
                     onlyParameters = False
 

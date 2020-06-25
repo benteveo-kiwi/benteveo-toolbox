@@ -1,5 +1,5 @@
 from burp import IScannerInsertionPoint, IParameter
-from fuzz import FuzzRunner
+from fuzz import FuzzRunner, SessionCheckNotReproducibleException
 from implementations import MessageEditorController, HttpService, ScannerInsertionPoint, ContextMenuInvocation
 from java.awt import BorderLayout
 from java.awt import Color
@@ -357,8 +357,8 @@ class ToolboxCallbacks(NewThreadCaller):
             log("[+] Loading Backslash Powered Scanner")
             self.extensions.append(("bps", utility.importBurpExtension("lib/backslash-powered-scanner-fork.jar", 'burp.BackslashBurpExtender', burpCallbacks)))
 
-            log("[+] Loading SHELLING")
-            self.extensions.append(("shelling", utility.importBurpExtension("lib/shelling.jar", 'burp.BurpExtender', burpCallbacks)))
+            # log("[+] Loading SHELLING")
+            # self.extensions.append(("shelling", utility.importBurpExtension("lib/shelling.jar", 'burp.BurpExtender', burpCallbacks)))
 
             log("[+] Loading ParamMiner")
             self.extensions.append(("paramminer", utility.importBurpExtension("lib/param-miner-fork.jar", 'paramminer.BurpExtender', burpCallbacks)))
@@ -586,26 +586,31 @@ class ToolboxCallbacks(NewThreadCaller):
         fuzzButton = event.source
         fuzzButton.setText("Fuzzing...")
 
+        abandonedScan = False
         try:
             sendMessageToSlack(self.burpCallbacks, "Scan started.")
             fuzzRunner = FuzzRunner(self.state, self.burpCallbacks, self.extensions)
             nbFuzzedTotal, nbExceptions = fuzzRunner.run()
         except ShutdownException:
                 log("Scan shutdown.")
-                return
+                abandonedScan = True
+        except SessionCheckNotReproducibleException:
+                log("Session Check not reproducible, abandoned scan.")
+                abandonedScan = True
         except:
             if utility.INSIDE_UNIT_TEST:
                 raise
 
             msg = "Scan failed due to an unknown exception."
-            sendMessageToSlack(self.burpCallbacks, msg)
             logging.error(msg, exc_info=True)
-            fuzzButton.setText("Fuzz fail.")
-            return
+            abandonedScan = True
 
         fuzzButton.setText("FUZZ")
 
-        if nbFuzzedTotal > 0 and nbExceptions == 0:
-            sendMessageToSlack(self.burpCallbacks, "Scan finished normally with no exceptions.")
-        elif nbFuzzedTotal > 0:
-            sendMessageToSlack(self.burpCallbacks, "Scan finished with %s exceptions." % nbExceptions)
+        if not abandonedScan:
+            if nbFuzzedTotal > 0 and nbExceptions == 0:
+                sendMessageToSlack(self.burpCallbacks, "Scan finished normally with no exceptions.")
+            elif nbFuzzedTotal > 0:
+                sendMessageToSlack(self.burpCallbacks, "Scan finished with %s exceptions." % nbExceptions)
+        else:
+            sendMessageToSlack(self.burpCallbacks, "Scan terminated prematurely. See logs for details.")
