@@ -169,7 +169,9 @@ class FuzzRunner(object):
                 if name == "paramminer":
                     menuItems = factory.createMenuItems(ContextMenuInvocation([request.repeatedHttpRequestResponse]))
                     for menuItem in menuItems:
-                        menuItem.doClick() # trigger "Guess headers/parameters/JSON!" functionality.
+                        # trigger "Guess headers/parameters/JSON!" functionality.
+                        runnable = PythonFunctionRunnable(menuItem.doClick)
+                        futures.append(self.state.fuzzExecutorService.submit(runnable))
 
         return futures
 
