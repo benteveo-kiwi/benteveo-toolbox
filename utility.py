@@ -173,7 +173,7 @@ def setupLogging(logLevel=None):
     """
 
     if not logLevel:
-        logLevel = logging.DEBUG
+        logLevel = logging.INFO
 
     format = '[%(levelname)s %(asctime)s]: %(message)s'
 
