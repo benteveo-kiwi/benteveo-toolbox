@@ -31,7 +31,11 @@ class FuzzRunner(object):
         """
         Main run method. Blocks the calling thread until threads are finished running.
         """
-        return self.fuzzEndpoints()
+        log("Starting scan.")
+        result = self.fuzzEndpoints()
+        log("Scan finished normally.")
+        
+        return result
 
     @utility.LogDecorator()
     def fuzzEndpoints(self):
