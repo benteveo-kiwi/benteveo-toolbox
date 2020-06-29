@@ -31,6 +31,7 @@ class FuzzRunner(object):
         """
         return self.fuzzEndpoints()
 
+    @utility.LogDecorator()
     def fuzzEndpoints(self):
         """
         Fuzzes endpoints as present in the state based on the user preferences.
@@ -82,6 +83,7 @@ class FuzzRunner(object):
 
         return nbFuzzedTotal, nbExceptions
 
+    @utility.LogDecorator()
     def checkMaxConcurrentRequests(self, futures, maxRequests):
         """
         Blocking function that waits until we can add more futures.
