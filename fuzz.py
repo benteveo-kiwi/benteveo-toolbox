@@ -138,6 +138,7 @@ class FuzzRunner(object):
 
         return nbExceptions
 
+    @utility.LogDecorator()
     def fuzzRequestModel(self, request):
         """
         Sends a RequestModel to be fuzzed by burp.
@@ -177,6 +178,7 @@ class FuzzRunner(object):
 
         return futures
 
+    @utility.LogDecorator()
     def doActiveScan(self, scanner, httpRequestResponse, insertionPoint):
         """
         Performs an active scan and stores issues found.
