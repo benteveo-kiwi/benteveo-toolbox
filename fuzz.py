@@ -18,6 +18,7 @@ class FuzzRunner(object):
     Main fuzz runner class. In charge of interacting with the extensions
     """
 
+    @utility.LogDecorator()
     def __init__(self, state, callbacks, extensions):
         self.state = state
         self.callbacks = callbacks
@@ -25,6 +26,7 @@ class FuzzRunner(object):
 
         self.lock = Lock()
 
+    @utility.LogDecorator()
     def run(self):
         """
         Main run method. Blocks the calling thread until threads are finished running.
@@ -41,6 +43,7 @@ class FuzzRunner(object):
         Returns:
             tuple: (int, int) number of items scanned and number of items for which the scan could not be completed due to an exception.
         """
+
 
         endpoints = self.state.endpointTableModel.endpoints
 
@@ -178,7 +181,6 @@ class FuzzRunner(object):
 
         return futures
 
-    @utility.LogDecorator()
     def doActiveScan(self, scanner, httpRequestResponse, insertionPoint):
         """
         Performs an active scan and stores issues found.

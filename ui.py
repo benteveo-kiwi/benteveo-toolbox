@@ -572,6 +572,7 @@ class ToolboxCallbacks(NewThreadCaller):
 
         resendAllButton.setText("Resent")
 
+    @utility.LogDecorator()
     def fuzzButtonClicked(self, event):
         """
         Handles clicks to the FUZZ button.
@@ -579,6 +580,7 @@ class ToolboxCallbacks(NewThreadCaller):
         Args:
             event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
         """
+	log("FuzzButton Clicked")
         if self.state.status == STATUS_FAILED:
             self.messageDialog("Confirm status check button says OK.")
             return
@@ -588,7 +590,9 @@ class ToolboxCallbacks(NewThreadCaller):
 
         abandonedScan = False
         try:
+            log("sending message to slack")
             sendMessageToSlack(self.burpCallbacks, "Scan started.")
+            log("done sending message to slack")
             fuzzRunner = FuzzRunner(self.state, self.burpCallbacks, self.extensions)
             nbFuzzedTotal, nbExceptions = fuzzRunner.run()
         except ShutdownException:
