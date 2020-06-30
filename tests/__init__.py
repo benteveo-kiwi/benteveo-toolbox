@@ -10,6 +10,7 @@ from ui import ToolboxCallbacks, STATUS_OK, STATUS_FAILED
 import contextlib
 import java.io.File
 import java.io.FileOutputStream
+import fuzz
 import logging
 import tempfile
 import ui
@@ -63,6 +64,7 @@ class BaseTestClass(unittest.TestCase):
         get_header = ui.get_header
         log = ui.log
         sendMessageToSlack = ui.sendMessageToSlack
+        resend_session_check = fuzz.resend_session_check
 
         # Replace with mocks.
         ui.apply_rules = GenericMock()
@@ -71,10 +73,12 @@ class BaseTestClass(unittest.TestCase):
         ui.get_header = GenericMock()
         ui.log = GenericMock()
         ui.sendMessageToSlack = GenericMock()
+        fuzz.resend_session_check = GenericMock()
 
         # Set return values.
         ui.apply_rules.return_value = (False, None)
         utility.apply_rules.return_value = (False, None)
+        fuzz.resend_session_check.return_value = (True, None)
 
         yield
 
@@ -85,6 +89,7 @@ class BaseTestClass(unittest.TestCase):
         ui.get_header = get_header
         ui.log = log
         ui.sendMessageToSlack = sendMessageToSlack
+        fuzz.resend_session_check = resend_session_check
 
     def _cem(self, method, url, dict=None):
         """

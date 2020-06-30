@@ -18,7 +18,6 @@ class FuzzRunner(object):
     Main fuzz runner class. In charge of interacting with the extensions
     """
 
-    @utility.LogDecorator()
     def __init__(self, state, callbacks, extensions):
         self.state = state
         self.callbacks = callbacks
@@ -26,7 +25,6 @@ class FuzzRunner(object):
 
         self.lock = Lock()
 
-    @utility.LogDecorator()
     def run(self):
         """
         Main run method. Blocks the calling thread until threads are finished running.
@@ -34,10 +32,9 @@ class FuzzRunner(object):
         log("Starting scan.")
         result = self.fuzzEndpoints()
         log("Scan finished normally.")
-        
+
         return result
 
-    @utility.LogDecorator()
     def fuzzEndpoints(self):
         """
         Fuzzes endpoints as present in the state based on the user preferences.
@@ -90,7 +87,6 @@ class FuzzRunner(object):
 
         return nbFuzzedTotal, nbExceptions
 
-    @utility.LogDecorator()
     def checkMaxConcurrentRequests(self, futures, maxRequests):
         """
         Blocking function that waits until we can add more futures.
@@ -145,7 +141,6 @@ class FuzzRunner(object):
 
         return nbExceptions
 
-    @utility.LogDecorator()
     def fuzzRequestModel(self, request):
         """
         Sends a RequestModel to be fuzzed by burp.

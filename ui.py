@@ -572,7 +572,6 @@ class ToolboxCallbacks(NewThreadCaller):
 
         resendAllButton.setText("Resent")
 
-    @utility.LogDecorator()
     def fuzzButtonClicked(self, event):
         """
         Handles clicks to the FUZZ button.

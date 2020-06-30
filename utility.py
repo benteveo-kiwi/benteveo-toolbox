@@ -173,7 +173,7 @@ def setupLogging(logLevel=None):
     """
 
     if not logLevel:
-        logLevel = logging.INFO
+        logLevel = logging.DEBUG
 
     format = '[%(levelname)s %(asctime)s]: %(message)s'
 
@@ -433,7 +433,7 @@ def resend_session_check(state, callbacks, textAreaText):
         textAreaText: the check request text as input in the textarea.
 
     Returns:
-        boolean: whether the session check request succeeded.
+        (boolean, analyzedResponse): whether the session check request succeeded, and the response to the request we've just sent to verify this.
     """
     baseRequestString = re.sub(r"(?!\r)\n", "\r\n", textAreaText)
     baseRequest = callbacks.helpers.stringToBytes(baseRequestString)
