@@ -125,6 +125,7 @@ def get_header(callbacks, request, header_name):
     analyzedRequest = callbacks.helpers.analyzeRequest(request)
     headers = analyzedRequest.headers
 
+    print "lelelele", headers, analyzedRequest
     for header in headers:
         try:
             name, value = header.split(":")

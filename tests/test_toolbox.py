@@ -323,6 +323,8 @@ class TestToolbox(BaseTestClass):
 
         callbacks.helpers.analyzeRequest.return_value.headers = headers
 
+        print utility, "this is utility"
+        print utility.get_header, "this is utility.get_header"
         host_header = utility.get_header(callbacks, testRequest, "host")
 
         self.assertEquals("example.org", host_header)
