@@ -108,6 +108,10 @@ class IssueChecker(TimerTask):
         """
         Main method. Gets called periodically by the Timer.
         """
+
+        # @TODO: XXX: Re-Enable issue notifications
+        return
+
         try:
             try:
                 scopeUrls = self.state.scope_urls
