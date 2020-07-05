@@ -1,5 +1,5 @@
 from burp import IScannerInsertionPoint, IParameter
-from fuzz import FuzzRunner
+from fuzz import FuzzRunner, SessionCheckNotReproducibleException
 from implementations import MessageEditorController, HttpService, ScannerInsertionPoint, ContextMenuInvocation
 from java.awt import BorderLayout
 from java.awt import Color
@@ -30,7 +30,7 @@ from javax.swing import JTextField
 from javax.swing import SwingUtilities
 from tables import Table, CellHighlighterRenderer, TableMouseAdapter
 from threading import Lock
-from utility import apply_rules, get_header, log, sendMessageToSlack, importBurpExtension, LogDecorator, PythonFunctionRunnable, resend_request_model
+from utility import apply_rules, log, sendMessageToSlack, importBurpExtension, LogDecorator, PythonFunctionRunnable, resend_request_model, resend_session_check, get_header
 from utility import REPLACE_HEADER_NAME, NoSuchHeaderException, ShutdownException
 import jarray
 import logging
@@ -357,8 +357,8 @@ class ToolboxCallbacks(NewThreadCaller):
             log("[+] Loading Backslash Powered Scanner")
             self.extensions.append(("bps", utility.importBurpExtension("lib/backslash-powered-scanner-fork.jar", 'burp.BackslashBurpExtender', burpCallbacks)))
 
-            log("[+] Loading SHELLING")
-            self.extensions.append(("shelling", utility.importBurpExtension("lib/shelling.jar", 'burp.BurpExtender', burpCallbacks)))
+            # log("[+] Loading SHELLING")
+            # self.extensions.append(("shelling", utility.importBurpExtension("lib/shelling.jar", 'burp.BurpExtender', burpCallbacks)))
 
             log("[+] Loading ParamMiner")
             self.extensions.append(("paramminer", utility.importBurpExtension("lib/param-miner-fork.jar", 'paramminer.BurpExtender', burpCallbacks)))
@@ -515,26 +515,14 @@ class ToolboxCallbacks(NewThreadCaller):
 
         self.burpCallbacks.saveExtensionSetting("scopeCheckRequest", textAreaText)
 
-        baseRequestString = re.sub(r"(?!\r)\n", "\r\n", textAreaText)
-        baseRequest = self.burpCallbacks.helpers.stringToBytes(baseRequestString)
-
         try:
-            hostHeader = get_header(self.burpCallbacks, baseRequest, "host")
+            checkOk, analyzedResponse = resend_session_check(self.state, self.burpCallbacks, textAreaText)
         except NoSuchHeaderException:
             self.messageDialog("Check request failed: no Host header present in session check request.")
             self.checkButtonSetFail(checkButton)
             return
 
-        target = self.burpCallbacks.helpers.buildHttpService(hostHeader, 443, "https")
-
-        nbModified, modifiedRequest = apply_rules(self.burpCallbacks, self.state.replacementRuleTableModel.rules, baseRequest)
-        if nbModified == 0:
-            log("Warning: No modifications made to check request.")
-
-        response = self.burpCallbacks.makeHttpRequest(target, modifiedRequest)
-        analyzedResponse = self.burpCallbacks.helpers.analyzeResponse(response.response)
-
-        if analyzedResponse.statusCode == 200:
+        if checkOk:
             checkButton.setText("Check: OK")
             self.state.status = STATUS_OK
         else:
@@ -591,6 +579,7 @@ class ToolboxCallbacks(NewThreadCaller):
         Args:
             event: the event as passed by Swing. Documented here: https://docs.oracle.com/javase/7/docs/api/java/util/EventObject.html
         """
+	log("FuzzButton Clicked")
         if self.state.status == STATUS_FAILED:
             self.messageDialog("Confirm status check button says OK.")
             return
@@ -598,26 +587,33 @@ class ToolboxCallbacks(NewThreadCaller):
         fuzzButton = event.source
         fuzzButton.setText("Fuzzing...")
 
+        abandonedScan = False
         try:
+            log("sending message to slack")
             sendMessageToSlack(self.burpCallbacks, "Scan started.")
+            log("done sending message to slack")
             fuzzRunner = FuzzRunner(self.state, self.burpCallbacks, self.extensions)
             nbFuzzedTotal, nbExceptions = fuzzRunner.run()
         except ShutdownException:
                 log("Scan shutdown.")
-                return
+                abandonedScan = True
+        except SessionCheckNotReproducibleException:
+                log("Session Check not reproducible, abandoned scan.")
+                abandonedScan = True
         except:
             if utility.INSIDE_UNIT_TEST:
                 raise
 
             msg = "Scan failed due to an unknown exception."
-            sendMessageToSlack(self.burpCallbacks, msg)
             logging.error(msg, exc_info=True)
-            fuzzButton.setText("Fuzz fail.")
-            return
+            abandonedScan = True
 
         fuzzButton.setText("FUZZ")
 
-        if nbFuzzedTotal > 0 and nbExceptions == 0:
-            sendMessageToSlack(self.burpCallbacks, "Scan finished normally with no exceptions.")
-        elif nbFuzzedTotal > 0:
-            sendMessageToSlack(self.burpCallbacks, "Scan finished with %s exceptions." % nbExceptions)
+        if not abandonedScan:
+            if nbFuzzedTotal > 0 and nbExceptions == 0:
+                sendMessageToSlack(self.burpCallbacks, "Scan finished normally with no exceptions.")
+            elif nbFuzzedTotal > 0:
+                sendMessageToSlack(self.burpCallbacks, "Scan finished with %s exceptions." % nbExceptions)
+        else:
+            sendMessageToSlack(self.burpCallbacks, "Scan terminated prematurely. See logs for details.")

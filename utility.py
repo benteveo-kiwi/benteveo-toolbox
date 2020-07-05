@@ -422,3 +422,32 @@ def sleep(state, sleepTime):
         raise ShutdownException()
 
     time.sleep(sleepTime)
+
+def resend_session_check(state, callbacks, textAreaText):
+    """
+    Sends session check request and inspects the response. If the response seems reproducible after applying the modifications required by the user, then the function returns true.
+
+    Args:
+        state: the global state object.
+        callbacks: the burp callbacks object.
+        textAreaText: the check request text as input in the textarea.
+
+    Returns:
+        (boolean, analyzedResponse): whether the session check request succeeded, and the response to the request we've just sent to verify this.
+    """
+    baseRequestString = re.sub(r"(?!\r)\n", "\r\n", textAreaText)
+    baseRequest = callbacks.helpers.stringToBytes(baseRequestString)
+    hostHeader = get_header(callbacks, baseRequest, "host")
+
+    target = callbacks.helpers.buildHttpService(hostHeader, 443, "https")
+    nbModified, modifiedRequest = apply_rules(callbacks, state.replacementRuleTableModel.rules, baseRequest)
+    if nbModified == 0:
+        log("Warning: No modifications made to check request.")
+
+    response = callbacks.makeHttpRequest(target, modifiedRequest)
+    analyzedResponse = callbacks.helpers.analyzeResponse(response.response)
+
+    if analyzedResponse.statusCode == 200:
+        return (True, analyzedResponse)
+    else:
+        return (False, analyzedResponse)

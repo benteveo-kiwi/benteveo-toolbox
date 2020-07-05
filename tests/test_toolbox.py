@@ -310,8 +310,8 @@ class TestToolbox(BaseTestClass):
                 cb, state, burpCallbacks = self._ctc()
                 cb.checkButtonClicked(GenericMock())
 
-                self.assertEquals(ui.apply_rules.call_count, 1)
-                self.assertEquals(ui.get_header.call_count, 1)
+                self.assertEquals(utility.apply_rules.call_count, 1)
+                self.assertEquals(utility.get_header.call_count, 1)
 
     def testGetHeader(self):
         testRequest = "whatever"
@@ -323,6 +323,8 @@ class TestToolbox(BaseTestClass):
 
         callbacks.helpers.analyzeRequest.return_value.headers = headers
 
+        print utility, "this is utility"
+        print utility.get_header, "this is utility.get_header"
         host_header = utility.get_header(callbacks, testRequest, "host")
 
         self.assertEquals("example.org", host_header)
@@ -489,7 +491,7 @@ class TestToolbox(BaseTestClass):
             except AttributeError:
                 pass
 
-            self.assertEquals(fuzz.resend_request_model.call_count, 2)
+            self.assertEquals(fuzz.resend_request_model.call_count, 6)
 
     def testClickFuzzOnlyIfSameStatusSame(self):
         with self.mockUtilityCalls():
@@ -511,7 +513,7 @@ class TestToolbox(BaseTestClass):
 
             cb.fuzzButtonClicked(GenericMock())
 
-            self.assertEquals(state.fuzzExecutorService.submit.call_count, 1)
+            self.assertEquals(state.fuzzExecutorService.submit.call_count, 5)
 
     def testPersistsMetadata(self):
         etm, state, callbacks = self._cetm()
@@ -572,7 +574,7 @@ class TestToolbox(BaseTestClass):
 
             cb.fuzzButtonClicked(GenericMock())
 
-            self.assertEquals(state.fuzzExecutorService.submit.call_count, 1)
+            self.assertEquals(state.fuzzExecutorService.submit.call_count, 5)
             self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 1)
 
     def testMarksEndpointsAsFuzzedOnlyIfReproducible(self):
@@ -601,7 +603,35 @@ class TestToolbox(BaseTestClass):
 
             cb.fuzzButtonClicked(GenericMock())
 
-            self.assertEquals(state.fuzzExecutorService.submit.call_count, 1)
+            self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 0)
+
+    def testMarksEndpointsAsFuzzedOnlyIfCheckRequestReproducible(self):
+        self.assertTrue(False)
+        with self.mockUtilityCalls():
+            cb, state, burpCallbacks = self._ctc()
+
+            em = GenericMock()
+            em.fuzzed = False
+            em.setFuzzed = GenericMock()
+            requestA = GenericMock()
+
+            utility.counter = 0
+            def wasReproducible():
+                if utility.counter == 0:
+                    utility.counter += 1
+                    return True
+                else:
+                    return False
+
+            requestA.wasReproducible = wasReproducible
+
+            em.requests = [requestA]
+            state.endpointTableModel.endpoints = {"GET|/lol": em}
+            requestA.analyzedResponse.statusCode = 200
+            requestA.repeatedAnalyzedResponse.statusCode = 200
+
+            cb.fuzzButtonClicked(GenericMock())
+
             self.assertEquals(state.endpointTableModel.setFuzzed.call_count, 0)
 
     def testIsStaticResource(self):

@@ -35,17 +35,9 @@ class TestFuzz(BaseTestClass):
         fr.extensions = [("scanner_name", extension)]
         fr.fuzzRequestModel(GenericMock())
 
-        self.assertEquals(state.executorService.submit.call_count, 5)
+        self.assertEquals(state.fuzzExecutorService.submit.call_count, 5)
 
-        state.executorService.submit.return_value.isDone = raise_exception
-
-        callsIsDone = False
-        try:
-            fr.fuzzRequestModel(GenericMock())
-        except TestException:
-            callsIsDone = True
-
-        self.assertTrue(callsIsDone, "Calls is done.")
+        state.fuzzExecutorService.submit.return_value.isDone = raise_exception
 
     def testGetInsertionPointsPathRoot(self):
         ipg, callbacks = self._ipg()
@@ -271,15 +263,12 @@ class TestFuzz(BaseTestClass):
         fr.extensions = [("paramminer", extension)] # the paramminer string triggers the clicks.
         fr.fuzzRequestModel(GenericMock())
 
-        self.assertEquals(state.executorService.submit.call_count, 5)
+        self.assertEquals(state.fuzzExecutorService.submit.call_count, 5)
 
-        state.executorService.submit.return_value.isDone = raise_exception
+        state.fuzzExecutorService.submit.return_value.isDone = raise_exception
 
-        callsIsDone = False
-        try:
-            fr.fuzzRequestModel(GenericMock())
-        except TestException:
-            callsIsDone = True
-
-        self.assertTrue(callsIsDone, "Calls is done.")
         self.assertTrue(extension.getContextMenuFactories.call_count, 5)
+
+
+    def testCheckMaxConcurrentRequests(self):
+        self.assertTrue(False)

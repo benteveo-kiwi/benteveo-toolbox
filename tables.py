@@ -138,7 +138,7 @@ class EndpointTableModel(AbstractTableModel):
         self.state = state
         self.callbacks = callbacks
         self.endpoints = OrderedDict()
-        self.MAX_REQUESTS_PER_ENDPOINT = 20
+        self.MAX_REQUESTS_PER_ENDPOINT = 200
 
         try:
             self.fuzzedMetadata = json.loads(self.callbacks.loadExtensionSetting('fuzzed-metadata'))

@@ -31,7 +31,7 @@ class BurpExtender(IBurpExtender):
 
         utility.setupLogging()
 
-        utility.log("Loaded Benteveo Toolbox v0.2.1")
+        utility.log("Loaded Benteveo Toolbox v0.2.2")
 
         state = State()
 
@@ -108,6 +108,10 @@ class IssueChecker(TimerTask):
         """
         Main method. Gets called periodically by the Timer.
         """
+
+        # @TODO: XXX: Re-Enable issue notifications
+        return
+
         try:
             try:
                 scopeUrls = self.state.scope_urls

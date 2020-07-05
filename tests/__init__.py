@@ -10,6 +10,7 @@ from ui import ToolboxCallbacks, STATUS_OK, STATUS_FAILED
 import contextlib
 import java.io.File
 import java.io.FileOutputStream
+import fuzz
 import logging
 import tempfile
 import ui
@@ -55,24 +56,40 @@ class BaseTestClass(unittest.TestCase):
         """
         Mocks calls to the utility module for ease of testability. Note that it only gets mocked in the "ui.py" file.
         """
-        apply_rules = ui.apply_rules
-        get_header = ui.get_header
-        log = ui.log
-        sendMessageToSlack = ui.sendMessageToSlack
+        try:
+            # Preserve previous values.
+            apply_rules = ui.apply_rules
+            utility_apply_rules = utility.apply_rules
+            utility_get_header = utility.get_header
+            get_header = ui.get_header
+            log = ui.log
+            sendMessageToSlack = ui.sendMessageToSlack
+            resend_session_check = fuzz.resend_session_check
 
-        ui.apply_rules = GenericMock()
-        ui.get_header = GenericMock()
-        ui.log = GenericMock()
-        ui.sendMessageToSlack = GenericMock()
+            # Replace with mocks.
+            ui.apply_rules = GenericMock()
+            utility.apply_rules = GenericMock()
+            utility.get_header = GenericMock()
+            ui.get_header = GenericMock()
+            ui.log = GenericMock()
+            ui.sendMessageToSlack = GenericMock()
+            fuzz.resend_session_check = GenericMock()
 
-        ui.apply_rules.return_value = (False, None)
+            # Set return values.
+            ui.apply_rules.return_value = (False, None)
+            utility.apply_rules.return_value = (False, None)
+            fuzz.resend_session_check.return_value = (True, None)
 
-        yield
-
-        ui.apply_rules = apply_rules
-        ui.get_header = get_header
-        ui.log = log
-        ui.sendMessageToSlack = sendMessageToSlack
+            yield
+        finally:
+            # Restore previous values.
+            ui.apply_rules = apply_rules
+            utility.apply_rules = utility_apply_rules
+            utility.get_header = utility_get_header
+            ui.get_header = get_header
+            ui.log = log
+            ui.sendMessageToSlack = sendMessageToSlack
+            fuzz.resend_session_check = resend_session_check
 
     def _cem(self, method, url, dict=None):
         """
@@ -159,6 +176,11 @@ class BaseTestClass(unittest.TestCase):
 
         cb = ToolboxCallbacks(state, burpCallbacks)
         cb.sleep = GenericMock()
+
+        extension = GenericMock()
+        scanner = GenericMock()
+        extension.getScannerChecks.return_value = [scanner]
+        cb.extensions = [("scanner_name", extension)]
 
         return cb, state, burpCallbacks
 

@@ -3,12 +3,15 @@ from implementations import ScannerInsertionPoint, ContextMenuInvocation
 from java.util.concurrent import Executors, ExecutionException
 from tables import NoResponseException
 from threading import Lock
-from utility import log, ShutdownException, resend_request_model, PythonFunctionRunnable, sendMessageToSlack
+from utility import log, ShutdownException, resend_request_model, PythonFunctionRunnable, sendMessageToSlack, resend_session_check
 import java.lang.Exception
 import java.lang.NullPointerException
 import time
 import utility
 import logging
+
+class SessionCheckNotReproducibleException(Exception):
+    pass
 
 class FuzzRunner(object):
     """
@@ -26,7 +29,11 @@ class FuzzRunner(object):
         """
         Main run method. Blocks the calling thread until threads are finished running.
         """
-        return self.fuzzEndpoints()
+        log("Starting scan.")
+        result = self.fuzzEndpoints()
+        log("Scan finished normally.")
+
+        return result
 
     def fuzzEndpoints(self):
         """
@@ -38,6 +45,7 @@ class FuzzRunner(object):
             tuple: (int, int) number of items scanned and number of items for which the scan could not be completed due to an exception.
         """
 
+
         endpoints = self.state.endpointTableModel.endpoints
 
         futures = []
@@ -46,12 +54,7 @@ class FuzzRunner(object):
         nbExceptions = 0
         for key in endpoints:
             endpoint = endpoints[key]
-            nbExceptions += self.checkMaxConcurrentRequests(futures, 10) # Only work on some requests at a time. This prevents a memory leak.
-
-            if endpointsNotReproducibleCount >= 10:
-                log("10 endpoints in a row not reproducible.")
-                sendMessageToSlack(self.callbacks, "10 endpoints in a row not reproducible, bailing from the current scan.")
-                break
+            nbExceptions += self.checkMaxConcurrentRequests(futures, 10) # Only work on some futures at a time. This prevents a memory leak.
 
             if endpoint.fuzzed:
                 continue
@@ -70,8 +73,8 @@ class FuzzRunner(object):
                     endpointsNotReproducibleCount = 0
                     nbFuzzedTotal += 1
 
-                    runnable = PythonFunctionRunnable(self.fuzzRequestModel, args=[request])
-                    futures.append((endpoint, request, self.state.fuzzExecutorService.submit(runnable)))
+                    frm_futures = self.fuzzRequestModel(request)
+                    futures.append((endpoint, request, frm_futures))
 
                     fuzzed = True
                     break
@@ -86,7 +89,7 @@ class FuzzRunner(object):
 
     def checkMaxConcurrentRequests(self, futures, maxRequests):
         """
-        Blocking function that waits until we can make more requests.
+        Blocking function that waits until we can add more futures.
 
         It is in charge of marking requests as fuzzed once completed.
 
@@ -101,26 +104,38 @@ class FuzzRunner(object):
         while len(futures) > maxRequests:
             utility.sleep(self.state, 0.5)
             for tuple in futures:
-                endpoint, request, future = tuple
-                if future.isDone():
-                    try:
-                        future.get()
-                    except ExecutionException as exc:
-                        logging.error("Failure fuzzing %s" % endpoint.url, exc_info=True)
-                        sendMessageToSlack(self.callbacks, "Failure fuzzing %s, exception: %s" % (endpoint.url, exc.cause))
+                endpoint, request, frm_futures = tuple
+                request_done = False
+                for future in frm_futures:
+                    if future.isDone():
+                        try:
+                            future.get()
+                        except ExecutionException as exc:
+                            logging.error("Failure fuzzing %s" % endpoint.url, exc_info=True)
+                            sendMessageToSlack(self.callbacks, "Failure fuzzing %s, exception: %s" % (endpoint.url, exc.cause))
 
-                        nbExceptions += 1
-                        continue
+                            nbExceptions += 1
 
+                        frm_futures.remove(future)
+
+                    if len(frm_futures) == 0:
+                        request_done = True
+
+                if request_done:
                     futures.remove(tuple)
-
                     resend_request_model(self.state, self.callbacks, request)
 
-                    if request.wasReproducible():
+                    textAreaText = self.state.sessionCheckTextarea.text
+                    sessionCheckReproducible, _ = resend_session_check(self.state, self.callbacks, textAreaText)
+
+                    if request.wasReproducible() and sessionCheckReproducible:
                         self.state.endpointTableModel.setFuzzed(endpoint, True)
                         log("Finished fuzzing %s" % endpoint.url)
-                    else:
+                    elif not request.wasReproducible():
                         log("Fuzzing complete but did not mark as fuzzed because no longer reproducible at %s." % endpoint.url)
+                    else:
+                        log("Fuzzing complete but did not mark as fuzzed because the session check request is no longer reproducible.")
+                        raise SessionCheckNotReproducibleException("Base request no longer reproducible.")
 
                     break
 
@@ -153,21 +168,17 @@ class FuzzRunner(object):
 
                 for insertionPoint in insertionPoints:
                     runnable = PythonFunctionRunnable(self.doActiveScan, args=[activeScanner, request.repeatedHttpRequestResponse, insertionPoint])
-                    futures.append(self.state.executorService.submit(runnable))
+                    futures.append(self.state.fuzzExecutorService.submit(runnable))
 
             for factory in extension.getContextMenuFactories():
                 if name == "paramminer":
                     menuItems = factory.createMenuItems(ContextMenuInvocation([request.repeatedHttpRequestResponse]))
                     for menuItem in menuItems:
-                        menuItem.doClick() # trigger "Guess headers/parameters/JSON!" functionality.
+                        # trigger "Guess headers/parameters/JSON!" functionality.
+                        runnable = PythonFunctionRunnable(menuItem.doClick)
+                        futures.append(self.state.fuzzExecutorService.submit(runnable))
 
-        while len(futures) > 0:
-            utility.sleep(self.state, 1)
-
-            for future in futures:
-                if future.isDone():
-                    future.get()
-                    futures.remove(future)
+        return futures
 
     def doActiveScan(self, scanner, httpRequestResponse, insertionPoint):
         """
@@ -185,6 +196,11 @@ class FuzzRunner(object):
             utility.sleep(self.state, 1)
             try:
                 issues = scanner.doActiveScan(httpRequestResponse, insertionPoint)
+                with self.lock:
+                    if issues:
+                        for issue in issues:
+                            self.callbacks.addScanIssue(issue)
+
                 break
             except (java.lang.Exception, java.lang.NullPointerException):
                 retries -= 1
@@ -192,11 +208,6 @@ class FuzzRunner(object):
             except:
                 retries -= 1
                 logging.error("Exception while fuzzing individual param, retrying it. %d retries left." % retries, exc_info=True)
-
-        with self.lock:
-            if issues:
-                for issue in issues:
-                    self.callbacks.addScanIssue(issue)
 
 class InsertionPointsGenerator(object):
     """
