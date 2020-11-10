@@ -239,6 +239,7 @@ def sendMessageToSlack(callbacks, message):
     body = "{'text':%s}" % json.dumps(message)
     contentLength = len(body)
 
+    # This token is disabled, left as an example. Ideally it would be fetched from the environment or similar.
     request = "POST /services/TEVNC7KU7/BTGDUCE6Q/Ic0Rw5eOxfQdAFMLhRPSYF2Y HTTP/1.1\r\nHost: hooks.slack.com\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s""" % (contentLength, body)
     callbacks.makeHttpRequest('hooks.slack.com', 443, True, String(request).getBytes())
 
